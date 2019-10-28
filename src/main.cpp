@@ -18,6 +18,10 @@ using namespace pe::co;
 #define VERSION     "1.0.alpha"
 #endif
 
+#if PZC_TARGET_LINUX
+#include <sys/wait.h>
+#endif
+
 bool g_isChild = false;
 std::string g_webroot;
 std::map< pid_t, bool > g_children_pmap;
