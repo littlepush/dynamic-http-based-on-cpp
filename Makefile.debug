@@ -15,14 +15,14 @@ ifeq ($(detected_OS),Darwin)
 	INSTALL_LIB_ROOT = /usr/local/lib
 	CC = clang++
 	EX_DEFINES = -I/usr/local/opt/openssl/include/
-	EX_FLAGS = -L/usr/local/opt/openssl/lib
+	EX_FLAGS = -L/usr/local/opt/openssl/lib -lssl
 else
 	LIB_EXT = so
 	INSTALL_INC_ROOT = /usr/include/pe
 	INSTALL_LIB_ROOT = /usr/lib64
 	CC = g++
 	EX_DEFINES = 
-	EX_FLAGS =
+	EX_FLAGS = -L/usr/lib64 -lssl
 endif
 
 DHBoC_DEFINES = $(EX_DEFINES) -I$(INSTALL_INC_ROOT)/utils -I$(INSTALL_INC_ROOT)/cotask -I$(INSTALL_INC_ROOT)/conet -I./
