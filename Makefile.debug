@@ -41,7 +41,7 @@ all :
 	$(CC) $(DEFINES) $(DHBoC_DEFINES) -c $< -o $@
 
 dhboc : $(DHBoC_OBJ_FILES)
-	$(CC) -o bin/dbhoc.debug $^ $(DHBoC_CFLAGS)
+	$(CC) -o bin/dhboc.debug $^ $(DHBoC_CFLAGS)
 
 install : 
 	@cp -vrf ./bin/* /usr/local/bin/
