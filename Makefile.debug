@@ -27,7 +27,7 @@ endif
 
 DHBoC_DEFINES = $(EX_DEFINES) -I$(INSTALL_INC_ROOT)/utils -I$(INSTALL_INC_ROOT)/cotask -I$(INSTALL_INC_ROOT)/conet -I./
 DHBoC_CFLAGS = $(EX_FLAGS) -lcotaskd -lssl -lresolv -lpeutils -lconetd
-DHBoC_CPP_FILES = ./src/main.cpp
+DHBoC_CPP_FILES = ./src/main.cpp ./src/modules.cpp ./src/startup.cpp
 DHBoC_OBJ_FILES = $(DHBoC_CPP_FILES:.cpp=.o)
 
 all : 

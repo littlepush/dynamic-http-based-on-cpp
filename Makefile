@@ -27,18 +27,27 @@ endif
 
 DHBoC_DEFINES = $(EX_DEFINES) -I$(INSTALL_INC_ROOT)/utils -I$(INSTALL_INC_ROOT)/cotask -I$(INSTALL_INC_ROOT)/conet -I./
 DHBoC_CFLAGS = $(EX_FLAGS) -lcotask -lssl -lresolv -lpeutils -lconet
+LIBDHBoC_CPP_FILES = ./src/modules.cpp ./src/startup.cpp
+LIBDHBoC_OBJ_FILES = $(LIBDHBoC_CPP_FILES:.cpp=.o)
 DHBoC_CPP_FILES = ./src/main.cpp
 DHBoC_OBJ_FILES = $(DHBoC_CPP_FILES:.cpp=.o)
 
 all : 
+	@mkdir -p $(INSTALL_INC_ROOT)/dhboc/
+	@cp ./src/application.h $(INSTALL_INC_ROOT)/dhboc/
 	@mkdir -p bin
-	$(MAKE)  dhboc
+	$(MAKE) libdhboc
+	@mv libdhboc.$(LIB_EXT) $(INSTALL_LIB_ROOT)
+	$(MAKE) dhboc
 
 %.o : %.cpp
 	$(CC) $(DEFINES) $(DHBoC_DEFINES) -c $< -o $@
 
+libdhboc : $(LIBDHBoC_OBJ_FILES)
+	$(CC) -shared -o libdhboc.$(LIB_EXT) $^ $(DHBoC_CFLAGS)
+
 dhboc : $(DHBoC_OBJ_FILES)
-	$(CC) -o bin/dhboc $^ $(DHBoC_CFLAGS)
+	$(CC) -o bin/dhboc $^ -ldhboc $(DHBoC_CFLAGS)
 
 install : 
 	@cp -vrf ./bin/* /usr/local/bin/
