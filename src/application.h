@@ -38,6 +38,7 @@ struct application_t {
     std::map< int, std::string >                code;
     std::string                                 webroot;
     std::string                                 runtime;
+    std::vector< std::string >                  exclude_path;
 };
 typedef void(*startup_initialize)( );
 

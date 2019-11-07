@@ -27,25 +27,31 @@ endif
 
 DHBoC_DEFINES = $(EX_DEFINES) -I$(INSTALL_INC_ROOT)/utils -I$(INSTALL_INC_ROOT)/cotask -I$(INSTALL_INC_ROOT)/conet -I./
 DHBoC_CFLAGS = $(EX_FLAGS) -lcotaskd -lssl -lresolv -lpeutils -lconetd
-DHBoC_CPP_FILES = ./src/main.cpp ./src/modules.cpp ./src/startup.cpp
-DHBoC_OBJ_FILES = $(DHBoC_CPP_FILES:.cpp=.o)
+LIBDHBoC_CPP_FILES = ./src/modules.cpp ./src/startup.cpp
+LIBDHBoC_OBJ_FILES = $(LIBDHBoC_CPP_FILES:.cpp=.debug.o)
+DHBoC_CPP_FILES = ./src/main.cpp
+DHBoC_OBJ_FILES = $(DHBoC_CPP_FILES:.cpp=.debug.o)
 
 all : 
+	@mkdir -p $(INSTALL_INC_ROOT)/dhboc/
+	@cp ./src/application.h $(INSTALL_INC_ROOT)/dhboc/
 	@mkdir -p bin
-	$(MAKE)  dhboc
+	$(MAKE) -f Makefile.debug libdhbocd
+	@mv libdhbocd.$(LIB_EXT) $(INSTALL_LIB_ROOT)
+	$(MAKE) -f Makefile.debug dhboc
 
-%.o : %.cpp
-	$(CC) $(DEFINES) $(PECO_NT_DEFINES) -c $< -o $@
-
-%.o : %.cpp
+%.debug.o : %.cpp
 	$(CC) $(DEFINES) $(DHBoC_DEFINES) -c $< -o $@
 
+libdhbocd : $(LIBDHBoC_OBJ_FILES)
+	$(CC) -shared -o libdhbocd.$(LIB_EXT) $^ $(DHBoC_CFLAGS)
+
 dhboc : $(DHBoC_OBJ_FILES)
-	$(CC) -o bin/dhboc.debug $^ $(DHBoC_CFLAGS)
+	$(CC) -o bin/dhboc.debug $^ -ldhbocd $(DHBoC_CFLAGS)
 
 install : 
-	@cp -vrf ./bin/* /usr/local/bin/
+	@cp -vrf ./bin/dhboc.debug /usr/local/bin/
 
 clean :
-	@rm -vrf */*.o
-	@rm -vrf bin/dhboc
+	@rm -vrf */*.debug.o
+	@rm -vrf bin/dhboc.debug

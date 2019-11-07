@@ -12,13 +12,21 @@
 application_t app;
 
 #ifdef __APPLE__
+#ifdef DEBUG
+const std::string EXT_NAME(".debug.dylib");
+#else
 const std::string EXT_NAME(".dylib");
+#endif
 std::string CC("clang++");
 const std::string INC_ROOT("/usr/local/include/pe");
 const std::string EX_DEFINES("-I/usr/local/opt/openssl/include/");
 const std::string EX_FLAGS("-L/usr/local/opt/openssl/lib");
 #else
+#ifdef DEBUG
+const std::string EXT_NAME(".debug.so");
+#else
 const std::string EXT_NAME(".so");
+#endif
 std::string CC("g++");
 const std::string INC_ROOT("/usr/include/pe");
 const std::string EX_DEFINES("");
@@ -215,7 +223,13 @@ bool __compile_startup(
     _fmain.close();
 
     // Build compile and link flags
-    std::string _obj = _objpath + utils::filename(inputfile) + ".o";
+    std::string _obj = _objpath + utils::filename(inputfile) + 
+    #ifdef DEBUG
+    ".debug.o";
+    #else
+    ".o";
+    #endif
+
     std::vector< std::string > _compileflags{
         CC, 
         "--std=c++11",
@@ -244,30 +258,38 @@ bool __compile_startup(
         outputfile,
         _obj,
         EX_FLAGS,
-        "-lcotask",
         "-lssl",
         "-lresolv",
         "-lpeutils",
+        #ifdef DEBUG
+        "-lcotaskd",
+        "-lconetd",
+        "-ldhbocd"
+        #else
+        "-lcotask",
         "-lconet",
         "-ldhboc"
+        #endif
     };
     std::string _link_cmd = utils::join(_linkflags.begin(), _linkflags.end(), " ");
     return ( 0 == system(_link_cmd.c_str()));
 }
 
 // // manager of the startup module
-startupmgr::startupmgr( const std::string& startup_file )
+startupmgr::startupmgr( const std::string& startup_file, bool force_rebuild )
     : done_(false), hstartup_(NULL), hrequest_(NULL), hresponse_(NULL), startup_(startup_file), 
     webroot(webroot_), runtime(runtime_), buildpath(buildpath_), libpath(libpath_)
 {
     webroot_ = utils::dirname(startup_file);
     if ( *(webroot_.rbegin()) != '/' ) webroot_ += '/';
     runtime_ = webroot_ + ".runtime/";
+    if ( force_rebuild ) { utils::fs_remove(runtime_); }
     if ( !utils::rek_make_dir(runtime_) ) {
         std::cerr << "failed to make runtime folder: " << runtime_ << std::endl;
         return;
     }
     buildpath_ = webroot_ + ".build/";
+    if ( force_rebuild ) { utils::fs_remove(buildpath_); }
     if ( !utils::rek_make_dir(buildpath_) ) {
         std::cerr << "failed to make build folder: " << buildpath_ << std::endl;
         return;

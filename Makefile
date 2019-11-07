@@ -50,7 +50,7 @@ dhboc : $(DHBoC_OBJ_FILES)
 	$(CC) -o bin/dhboc $^ -ldhboc $(DHBoC_CFLAGS)
 
 install : 
-	@cp -vrf ./bin/* /usr/local/bin/
+	@cp -vrf ./bin/dhboc /usr/local/bin/
 
 clean :
 	@rm -vrf */*.o

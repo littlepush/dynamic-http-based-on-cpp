@@ -36,7 +36,7 @@ protected:
 
 public: 
     // Init the startup manager with the input file
-    startupmgr( const std::string& startup_file );
+    startupmgr( const std::string& startup_file, bool force_rebuild = false );
     ~startupmgr();
 
     const std::string& webroot;

@@ -54,7 +54,11 @@ void server_worker( net::http_request& req ) {
 int main( int argc, char* argv[] ) {
     // Load Config file first
     std::string _config_path;
+    bool _force_rebuild = false; bool* _pfrb = &_force_rebuild;
     utils::argparser::set_parser("modules", "m", _config_path);
+    utils::argparser::set_parser("rebuild", "r", [_pfrb](std::string&& arg) {
+        *_pfrb = true;
+    });
     utils::argparser::set_parser("version", "v", [](std::string&& arg) {
         std::cout << "DHBoC server, version: " << VERSION << std::endl;
         std::cout << "Copyright 2015-2019 Push Lab. All rights reserved." << std::endl;
@@ -84,9 +88,41 @@ int main( int argc, char* argv[] ) {
         utils::argparser::parse(_config_path);
     }
 
-    startupmgr _smgr(_startup);
+    startupmgr _smgr(_startup, _force_rebuild);
     if ( !_smgr ) return 4; // failed to start
     g_startup = &_smgr;
+
+    // Scan all files
+    std::string _workroot = utils::dirname(_startup);
+    // Format exclude path
+    for ( auto& _ep : app.exclude_path ) {
+        if ( utils::is_string_start(_ep, "./") ) _ep.erase(0, 2);
+        while ( _ep[0] == '/' ) _ep.erase(0, 1);
+        if ( *_ep.rbegin() == '/' ) _ep.pop_back();
+        _ep = (_workroot + _ep);
+    }
+    std::vector< std::string > _compile_list;
+    std::vector< std::string >* _pcl = &_compile_list;
+    utils::rek_scan_dir(
+        _workroot, 
+        [_pcl, _startup](const std::string& path, bool is_dir) -> bool {
+            if ( path == _startup ) return false;
+            // Check if the path is in ignore list
+            for ( const auto& _ep : app.exclude_path ) {
+                // Same path, ignore all 
+                if ( _ep == path ) return false;
+            }
+            if ( !is_dir ) {
+                // Add to compile list
+                _pcl->push_back(path);
+            }
+            return true;
+        }
+    );
+    for ( const auto& src_file : _compile_list ) {
+        // Do compile
+        std::cout << "will try to compile: " << src_file << std::endl;
+    }
 
     if ( app.workers <= 0 || app.workers > MAX_WORKERS ) app.workers = 1;
     // Create the listening port
