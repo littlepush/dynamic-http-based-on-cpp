@@ -39,6 +39,7 @@ struct application_t {
     std::string                                 webroot;
     std::string                                 runtime;
     std::vector< std::string >                  exclude_path;
+    std::vector< std::string >                  pre_includes;
 };
 typedef void(*startup_initialize)( );
 

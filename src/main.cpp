@@ -107,6 +107,10 @@ int main( int argc, char* argv[] ) {
         _workroot, 
         [_pcl, _startup](const std::string& path, bool is_dir) -> bool {
             if ( path == _startup ) return false;
+            // Ignore object file
+            if ( utils::extension(path) == "o" ) return false;
+            // Default to omit any file/folder begin with '_'
+            if ( utils::filename(path)[0] == '_' ) return false;
             // Check if the path is in ignore list
             for ( const auto& _ep : app.exclude_path ) {
                 // Same path, ignore all 

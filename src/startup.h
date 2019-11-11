@@ -30,7 +30,7 @@ protected:
     std::string             startup_;
     std::string             webroot_;
     std::string             runtime_;
-    std::string             buildpath_;
+    std::string             serverpath_;
     std::string             libpath_;
 
 
@@ -41,7 +41,7 @@ public:
 
     const std::string& webroot;
     const std::string& runtime;
-    const std::string& buildpath;
+    const std::string& serverpath;
     const std::string& libpath;
 
     // Check if the startup module has been loaded
@@ -55,6 +55,12 @@ public:
 
     // Final Response handler
     void final_response( http_request& req, http_response& resp );
+
+    // Compile source code, specified the input source file and the output obj path
+    bool compile_source(const std::string& src, const std::string& obj);
+
+    // Link and create a shared library
+    bool create_library(const std::vector<std::string>& objs, const std::string& libpath);
 };
 
 #endif 

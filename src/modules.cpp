@@ -33,7 +33,6 @@ modulemgr::modulemgr() {
     dhboc_module _dm{
         NULL,
         std::string("redis-group"),
-        "pe::co::net::redis::group",
         std::vector<std::string>{},
         std::vector<std::string>{},
         std::vector<std::string>{},
@@ -60,7 +59,6 @@ bool modulemgr::load_module( const std::string& module_name ) {
         dhboc_module _dm{
             _hm, 
             module_get_info(_hm, "module_name"),
-            module_get_info(_hm, "require_type"),
             module_get_config(_hm, "header_files"),
             module_get_config(_hm, "compile_flags"),
             module_get_config(_hm, "link_flags")
@@ -68,6 +66,7 @@ bool modulemgr::load_module( const std::string& module_name ) {
         // Try to connect all strings
         for ( auto& i : _dm.header_files ) {
             mgr().includes_ += ("#include <" + i + ">\n");
+            mgr().include_files_.push_back(i);
         }
         for ( auto& c : _dm.compile_flags ) {
             for ( auto& kv : mgr().module_map_ ) {
@@ -115,21 +114,16 @@ bool modulemgr::load_module( const std::string& module_name ) {
     #endif
     return true;
 }
+// Get all include files vector
+const std::vector< std::string >& modulemgr::include_files() { return mgr().include_files_; }
 
 // Get all include file list as a formated string
-std::string modulemgr::all_include() { return mgr().includes_; }
+std::string modulemgr::include_string() { return mgr().includes_; }
 
 // Get all compile flags as a string
 std::string modulemgr::compile_flags() { return mgr().compile_flags_; }
 
 // Get all link flags as a string
 std::string modulemgr::link_flags() { return mgr().link_flags_; }
-
-// Get the require type of a module
-std::string modulemgr::require_type( const std::string& module_name ) {
-    auto _it = mgr().module_map_.find(module_name);
-    if ( _it == mgr().module_map_.end() ) return std::string("");
-    return _it->second.require_type;
-}
 
 // Push Chen

@@ -25,7 +25,6 @@ typedef std::vector<std::string>(*module_config_f)( void );
 struct dhboc_module {
     module_t                    module;
     std::string                 module_name;
-    std::string                 require_type;
     std::vector<std::string>    header_files;
     std::vector<std::string>    compile_flags;
     std::vector<std::string>    link_flags;
@@ -41,6 +40,7 @@ std::vector< std::string > module_get_config( module_t mh, const char* method );
 class modulemgr {
     // Save all loaded modules
     std::map< std::string, dhboc_module >   module_map_;
+    std::vector< std::string >              include_files_;
     std::string                             includes_;
     std::string                             compile_flags_;
     std::string                             link_flags_;
@@ -55,17 +55,17 @@ public:
     // Load a module and add to the cache
     static bool load_module( const std::string& module_name );
 
+    // Get all include files vector
+    static const std::vector< std::string >& include_files();
+
     // Get all include file list as a formated string
-    static std::string all_include();
+    static std::string include_string();
 
     // Get all compile flags as a string
     static std::string compile_flags();
 
     // Get all link flags as a string
     static std::string link_flags();
-
-    // Get the require type of a module
-    static std::string require_type( const std::string& module_name );
 };
 
 #endif 
