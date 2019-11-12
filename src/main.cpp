@@ -34,15 +34,37 @@ bool g_isChild = false;
 std::string g_webroot;
 std::map< pid_t, bool > g_children_pmap;
 startupmgr *g_startup = NULL;
+content_handlers *g_ch = NULL;
 
 void server_worker( net::http_request& req ) {
+    if ( utils::is_string_end(req.path(), "/") ) {
+        req.path() += "index.html";
+    }
     #ifdef DEBUG
     std::cout << req.method() << " " << req.path() << std::endl;
     #endif
     http_response _resp;
     auto _pcode = g_startup->pre_request(req);
+    if ( _pcode == http::CODE_000 ) {
+        // route to find the content
+        if ( !g_ch->try_find_handler(req, _resp) ) {
+            // else _resp.load_file(req.path());
+            _resp.load_file(app.webroot + req.path());
+        }
+        if ( _resp.status_code != CODE_200 ) {
+            _pcode = _resp.status_code;
+        }
+    }
     if ( _pcode != http::CODE_000 ) {
-        // To do something
+        // Load specifial file as the resposne body
+        if ( app.code.find(_pcode) != app.code.end() ) {
+            #ifdef DEBUG
+            std::cout << "pre-request return " << _pcode << ", and has return page: "
+                << app.webroot + app.code[_pcode] << std::endl;
+            #endif
+            _resp.load_file(app.webroot + app.code[_pcode]);
+        }
+        // force to set the response code
         _resp.status_code = _pcode;
     }
 
@@ -67,16 +89,17 @@ int main( int argc, char* argv[] ) {
     });
 
     if ( !utils::argparser::parse(argc, argv) ) return 1;
+    std::string _startup = "./main.cpp";
     auto _iargs = utils::argparser::individual_args();
-    if ( _iargs.size() == 0 ) {
-        std::cerr << "missing startup file" << std::endl;
-        return 1;
+    if ( _iargs.size() != 0 ) {
+        _startup = _iargs[0];
     }
-    if ( !utils::is_file_existed(_iargs[0]) ) {
-        std::cerr << "startup file not existed: " << _iargs[0] << std::endl;
+    if ( !utils::is_file_existed(_startup) ) {
+        std::cerr << "startup file not existed: " << _startup << std::endl;
         return 2;
     }
-    std::string _startup = _iargs[0];
+    // Try to format the startup
+    _startup = utils::dirname(_startup) + utils::full_filename(_startup);
     utils::argparser::clear();
 
     // load all modules
@@ -101,11 +124,12 @@ int main( int argc, char* argv[] ) {
         if ( *_ep.rbegin() == '/' ) _ep.pop_back();
         _ep = (_workroot + _ep);
     }
-    std::vector< std::string > _compile_list;
-    std::vector< std::string >* _pcl = &_compile_list;
+
+    content_handlers _ch(&_smgr);
+    g_ch = &_ch;
     utils::rek_scan_dir(
         _workroot, 
-        [_pcl, _startup](const std::string& path, bool is_dir) -> bool {
+        [&_ch, _startup](const std::string& path, bool is_dir) -> bool {
             if ( path == _startup ) return false;
             // Ignore object file
             if ( utils::extension(path) == "o" ) return false;
@@ -118,15 +142,13 @@ int main( int argc, char* argv[] ) {
             }
             if ( !is_dir ) {
                 // Add to compile list
-                _pcl->push_back(path);
+                if ( !_ch.format_source_code(path) ) { exit(10); }
             }
             return true;
         }
     );
-    for ( const auto& src_file : _compile_list ) {
-        // Do compile
-        std::cout << "will try to compile: " << src_file << std::endl;
-    }
+    // Try to build the library for all handlers
+    if ( !_ch.build_handler_lib() ) return 99;
 
     if ( app.workers <= 0 || app.workers > MAX_WORKERS ) app.workers = 1;
     // Create the listening port
@@ -158,6 +180,7 @@ int main( int argc, char* argv[] ) {
         }
     } else {
         _smgr.worker_initialization();
+        _ch.load_handlers();
         loop::main.do_job(_lso, []() {
             net::http_server::listen( &server_worker );
         });

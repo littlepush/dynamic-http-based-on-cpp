@@ -17,7 +17,7 @@ const std::string EXT_NAME(".debug.dylib");
 #else
 const std::string EXT_NAME(".dylib");
 #endif
-std::string CC("clang++");
+const std::string CC("clang++");
 const std::string INC_ROOT("/usr/local/include/pe");
 const std::string EX_DEFINES("-I/usr/local/opt/openssl/include/");
 const std::string EX_FLAGS("-L/usr/local/opt/openssl/lib");
@@ -27,7 +27,7 @@ const std::string EXT_NAME(".debug.so");
 #else
 const std::string EXT_NAME(".so");
 #endif
-std::string CC("g++");
+const std::string CC("g++");
 const std::string INC_ROOT("/usr/include/pe");
 const std::string EX_DEFINES("");
 const std::string EX_FLAGS("-L/usr/lib64");
@@ -42,7 +42,7 @@ const std::string CC_DEFINES("-DRELEASE=1 -O3");
 #endif
 
 // Compile source code, specified the input source file and the output obj path
-bool startupmgr::compile_source(const std::string& src, const std::string& obj) {
+bool startupmgr::compile_source(const std::string& src, const std::string& obj, const char* ex) {
     std::vector< std::string > _cflags{
         CC, 
         "--std=c++11",
@@ -66,6 +66,7 @@ bool startupmgr::compile_source(const std::string& src, const std::string& obj) 
     for ( const auto& i : app.pre_includes ) {
         _cflags.push_back(std::string("-include ") + webroot_ + i);
     }
+    if ( ex != NULL ) _cflags.push_back(std::string(ex));
     _cflags.push_back("-c");
     _cflags.push_back(src);
     _cflags.push_back("-o");
@@ -80,7 +81,11 @@ bool startupmgr::compile_source(const std::string& src, const std::string& obj) 
 }
 
 // Link and create a shared library
-bool startupmgr::create_library(const std::vector<std::string>& objs, const std::string& libpath) {
+bool startupmgr::create_library(
+    const std::vector<std::string>& objs, 
+    const std::string& libpath, 
+    const char* ex
+) {
     std::vector< std::string > _linkflags{
         CC,
         "-shared",
@@ -98,6 +103,7 @@ bool startupmgr::create_library(const std::vector<std::string>& objs, const std:
     #else
     _linkflags.push_back("-lcotask -lconet -ldhboc");
     #endif
+    if ( ex != NULL ) _linkflags.push_back(std::string(ex));
 
     std::string _link_cmd = utils::join(_linkflags.begin(), _linkflags.end(), " ");
 
@@ -210,6 +216,107 @@ http::CODE startupmgr::pre_request( http_request& req ) {
 // Final Response handler
 void startupmgr::final_response( http_request& req, http_response& resp ) {
     if ( hresponse_ ) hresponse_(req, resp);
+}
+
+// Create a content handler with the startup manager
+content_handlers::content_handlers(startupmgr * smgr) : smgr_(smgr) { }
+
+// Format and compile source code
+bool content_handlers::format_source_code( const std::string& origin_file ) {
+    std::string _output = utils::dirname(origin_file) + "_" + utils::filename(origin_file) + ".cpp";
+    std::string _path = origin_file;
+    if ( utils::is_string_start(_path, app.webroot) ) {
+        _path.erase(0, app.webroot.size() - 1);
+    }
+    std::ofstream _ofs(_output);
+    _ofs << "extern \"C\"{" << std::endl;
+    _ofs << "void __" << utils::md5(_path)
+        << "(const http_request& req, http_response& resp) {" << std::endl;
+
+    // Load code
+    std::ifstream _ifs(origin_file);
+    std::string _code(
+        (std::istreambuf_iterator<char>(_ifs)), 
+        (std::istreambuf_iterator<char>())
+    );
+    _ifs.close();
+
+    size_t _le = 0;
+    while ( _le != std::string::npos && _le < _code.size() ) {
+        size_t _bpos = _code.find("{@", _le);
+        size_t _epos = _bpos;
+        if ( _bpos != std::string::npos ) {
+            _epos = _code.find("@}", _bpos);
+            if ( _epos == std::string::npos ) {
+                std::cerr << "error code block, missing `@}`" << std::endl;
+                std::cerr << "failed to format file: " << origin_file << std::endl;
+                return false;
+            }
+        }
+        // We do find some code block after some html code
+        if ( _bpos > _le && _bpos != std::string::npos ) {
+            std::string _html = _code.substr(_le, _bpos - _le);
+            _ofs << "    resp.write(utils::gunzip_data(utils::base64_decode(\"" << 
+                utils::base64_encode(utils::gzip_data(_html))
+            << "\")));" << std::endl;
+        }
+        // Till end of code, no more code block
+        if ( _bpos == std::string::npos && _le < _code.size() ) {
+            std::string _html = _code.substr(_le);
+            _ofs << "    resp.write(utils::gunzip_data(utils::base64_decode(\"" << 
+                utils::base64_encode(utils::gzip_data(_html))
+            << "\")));" << std::endl;
+            break;
+        }
+        // Update _le
+        _le = _epos;
+        if ( _le != std::string::npos ) _le += 2;
+
+        // Now we should copy the code
+        _ofs << _code.substr(_bpos + 2, _epos - _bpos - 2) << std::endl;
+    }
+
+    _ofs << "}}" << std::endl;
+
+    std::string _obj = utils::dirname(origin_file) + utils::filename(origin_file) + OBJ_EXT;
+    if ( smgr_->compile_source(_output, _obj) ) {
+        // Register the handler list
+        handler_names_[_path] = "__" + utils::md5(_path);
+        objs_.emplace_back(std::move(_obj));
+        return true;
+    }
+    return false;
+}
+
+// Create handler lib
+bool content_handlers::build_handler_lib( ) {
+    hlibpath_ = smgr_->runtime + "handlers" + EXT_NAME;
+    if ( objs_.size() > 0 ) {
+        // Try to create the final lib
+        return smgr_->create_library(objs_, hlibpath_, smgr_->libpath.c_str());
+    }
+    return true;
+}
+
+// Load the handler in worker
+void content_handlers::load_handlers() {
+    // Load handlers
+    if ( utils::is_file_existed(hlibpath_) ) {
+        mh_ = dlopen(hlibpath_.c_str(), RTLD_LAZY | RTLD_GLOBAL);
+        dlerror();
+        // Load all handlers
+        for ( const auto& pn : handler_names_ ) {
+            handlers_[pn.first] = (http_handler)dlsym(mh_, pn.second.c_str());
+        }
+    }
+}
+
+// Try to search the handler and run
+bool content_handlers::try_find_handler(const http_request& req, http_response& resp) {
+    auto _h = handlers_.find(req.path());
+    if ( _h == handlers_.end() ) return false;
+    _h->second(req, resp);
+    return true;
 }
 
 // Push Chen

@@ -1,0 +1,18 @@
+<html>
+<head>
+    <title>This is the index page created at {@
+        resp.write(std::to_string(time(NULL)));
+    @}
+</title>
+</head>
+<body>
+    <h1> {@
+    #ifdef DEBUG
+        resp.write("DEBUG Version 1.0.alpha");
+    #else
+        resp.write("RELEASE Version 1.0.alpha");
+    #endif
+        @}
+    </h1>
+</body>
+</html>

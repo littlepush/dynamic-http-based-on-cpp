@@ -44,12 +44,15 @@ extern "C" {
 std::shared_ptr< net::redis::group > gredis;
 
 void __initialize() {
-    app.code[404] = "404.html";
-    app.code[500] = "500.html";
+    app.code[404] = "_static/404.html";
+    app.code[500] = "_static/500.html";
+    app.code[401] = "_static/401.html";
     std::cout << "this is in the main.dhc file and output by it self" << std::endl;
     app.address = "127.0.0.1:8884";
     std::cout << "lalalalala" << std::endl;
-    app.workers = 3;
+    // app.workers = utils::sys::cpu_count() / 2;
+    app.workers = 1;
+    app.exclude_path.push_back("a");
     app.pre_includes.push_back("_server/main.h");
 }
 
@@ -64,8 +67,10 @@ void __startup() {
 
 http::CODE __pre_request(http_request& req) {
     std::string _path = req.path();
-    if ( _path == "a" ) return CODE_000;
-    if ( _path == "b" ) return CODE_000;
+    std::cout << "in __pre_request, path is " << _path << std::endl;
+    if ( _path == "/index.html" ) return CODE_000;
+    if ( _path == "/a" ) return CODE_000;
+    if ( _path == "/b" ) return CODE_000;
     if ( !req.header.contains("Access-Token") ) return CODE_401;
     std::string _token = req.header["Access-Token"];
     auto _sessionId = gredis->query("GET", _token);
