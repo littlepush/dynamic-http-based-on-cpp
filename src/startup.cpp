@@ -302,19 +302,45 @@ bool content_handlers::build_handler_lib( ) {
 void content_handlers::load_handlers() {
     // Load handlers
     if ( utils::is_file_existed(hlibpath_) ) {
+        #ifdef DEBUG
+        std::cout << "in workers, try to load handler lib: " << hlibpath_ << std::endl;
+        #endif
         mh_ = dlopen(hlibpath_.c_str(), RTLD_LAZY | RTLD_GLOBAL);
+        if ( !mh_ ) {
+            std::cerr << dlerror() << std::endl;
+            exit(12);
+        }
         dlerror();
         // Load all handlers
         for ( const auto& pn : handler_names_ ) {
-            handlers_[pn.first] = (http_handler)dlsym(mh_, pn.second.c_str());
+            http_handler _h = (http_handler)dlsym(mh_, pn.second.c_str());
+            if ( !_h ) {
+                const char* _sym_error = dlerror();
+                std::cerr << _sym_error << std::endl;
+                if ( _sym_error ) throw std::string(_sym_error);
+            }
+            handlers_[pn.first] = _h;
         }
     }
 }
 
 // Try to search the handler and run
 bool content_handlers::try_find_handler(const http_request& req, http_response& resp) {
+    #ifdef DEBUG
+    std::cout << "try to find handler for path: " << req.path() << std::endl;
+    #endif
     auto _h = handlers_.find(req.path());
     if ( _h == handlers_.end() ) return false;
+    #ifdef DEBUG
+    std::cout << "do find the handler for path: " << req.path() << std::endl;
+    #endif
+    if ( _h->second == NULL ) {
+        #ifdef DEBUG
+        std::cout << "but the handler is NULL for path: " << req.path();
+        std::cout << ", handler name should be: " << handler_names_[req.path()] << std::endl;
+        #endif
+        return false;
+    }
     _h->second(req, resp);
     return true;
 }

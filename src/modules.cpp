@@ -19,7 +19,7 @@ std::string module_get_info( module_t mh, const char* method ) {
 std::vector< std::string > module_get_config( module_t mh, const char* method ) {
     module_config_f _fh = (module_config_f)dlsym(mh, method);
     const char* _sym_error = dlerror();
-    if ( _sym_error ) throw _sym_error;
+    if ( _sym_error ) throw std::string(_sym_error);
     return _fh();
 }
 
