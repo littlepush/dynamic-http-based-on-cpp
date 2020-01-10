@@ -54,7 +54,7 @@ bool startupmgr::compile_source(const std::string& src, const std::string& obj, 
         EX_DEFINES,
         "-I" + INC_ROOT,
         modulemgr::compile_flags(),
-        "-include application.h"
+        "-include dhboc/application.h"
     };
     // Include all files
     for ( const auto& i : modulemgr::include_files() ) {
