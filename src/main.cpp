@@ -7,11 +7,8 @@
     Copyright 2015-2019 MeetU Infomation and Technology Inc. All rights reserved.
 */
 
-#include <peutils.h>
+#include <peco/peco.h>
 using namespace pe;
-
-#include <cotask.h>
-#include <conet.h>
 using namespace pe::co;
 
 #ifndef VERSION

@@ -12,11 +12,8 @@
 #ifndef DHBOC_APPLICATION_H__
 #define DHBOC_APPLICATION_H__
 
-#include <peutils.h>
+#include <peco/peco.h>
 using namespace pe;
-
-#include <cotask.h>
-#include <conet.h>
 using namespace pe::co;
 using namespace pe::co::net;
 using namespace pe::co::net::proto;

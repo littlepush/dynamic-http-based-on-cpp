@@ -18,7 +18,7 @@ const std::string EXT_NAME(".debug.dylib");
 const std::string EXT_NAME(".dylib");
 #endif
 const std::string CC("clang++");
-const std::string INC_ROOT("/usr/local/include/pe");
+const std::string INC_ROOT("/usr/local/include/libpeco");
 const std::string EX_DEFINES("-I/usr/local/opt/openssl/include/");
 const std::string EX_FLAGS("-L/usr/local/opt/openssl/lib");
 #else
@@ -28,9 +28,9 @@ const std::string EXT_NAME(".debug.so");
 const std::string EXT_NAME(".so");
 #endif
 const std::string CC("g++");
-const std::string INC_ROOT("/usr/include/pe");
+const std::string INC_ROOT("/usr/include/libpeco");
 const std::string EX_DEFINES("");
-const std::string EX_FLAGS("-L/usr/lib64");
+const std::string EX_FLAGS("-L/usr/lib");
 #endif
 
 #ifdef DEBUG
@@ -52,10 +52,7 @@ bool startupmgr::compile_source(const std::string& src, const std::string& obj, 
         "-fPIC",
         CC_DEFINES,
         EX_DEFINES,
-        "-I" + INC_ROOT + "/utils",
-        "-I" + INC_ROOT + "/cotask",
-        "-I" + INC_ROOT + "/conet",
-        "-I" + INC_ROOT + "/dhboc",
+        "-I" + INC_ROOT,
         modulemgr::compile_flags(),
         "-include application.h"
     };
@@ -97,12 +94,7 @@ bool startupmgr::create_library(
     }
     _linkflags.push_back(EX_FLAGS);
     _linkflags.push_back(modulemgr::link_flags());
-    _linkflags.push_back("-lssl -lresolv -lpeutils");
-    #ifdef DEBUG
-    _linkflags.push_back("-lcotaskd -lconetd -ldhbocd");
-    #else
-    _linkflags.push_back("-lcotask -lconet -ldhboc");
-    #endif
+    _linkflags.push_back("-lz -lssl -lcrypto -lresolv -lpeco -ldhboc");
     if ( ex != NULL ) _linkflags.push_back(std::string(ex));
 
     std::string _link_cmd = utils::join(_linkflags.begin(), _linkflags.end(), " ");
