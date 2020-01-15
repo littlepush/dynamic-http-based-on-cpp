@@ -18,9 +18,8 @@ const std::string EXT_NAME(".debug.dylib");
 const std::string EXT_NAME(".dylib");
 #endif
 const std::string CC("clang++");
-const std::string INC_ROOT("/usr/local/include/libpeco");
-const std::string EX_DEFINES("-I/usr/local/opt/openssl/include/");
-const std::string EX_FLAGS("-L/usr/local/opt/openssl/lib");
+const std::string INC_ROOT(CXX_FLAGS);
+const std::string EX_FLAGS(LD_FLAGS);
 #else
 #ifdef DEBUG
 const std::string EXT_NAME(".debug.so");
@@ -28,9 +27,8 @@ const std::string EXT_NAME(".debug.so");
 const std::string EXT_NAME(".so");
 #endif
 const std::string CC("g++");
-const std::string INC_ROOT("/usr/include/libpeco");
-const std::string EX_DEFINES("");
-const std::string EX_FLAGS("-L/usr/lib");
+const std::string INC_ROOT(CXX_FLAGS);
+const std::string EX_FLAGS(LD_FLAGS);
 #endif
 
 #ifdef DEBUG
@@ -51,8 +49,7 @@ bool startupmgr::compile_source(const std::string& src, const std::string& obj, 
         "-Wall",
         "-fPIC",
         CC_DEFINES,
-        EX_DEFINES,
-        "-I" + INC_ROOT,
+        INC_ROOT,
         modulemgr::compile_flags(),
         "-include dhboc/application.h"
     };
@@ -178,7 +175,7 @@ startupmgr::startupmgr( const std::string& startup_file, bool force_rebuild )
 }
 startupmgr::~startupmgr() {
     // Close the startup module
-    if ( !hstartup_ ) dlclose(hstartup_);
+    if ( hstartup_ ) dlclose(hstartup_);
 }
 
 // Check if the startup module has been loaded
@@ -215,6 +212,7 @@ content_handlers::content_handlers(startupmgr * smgr) : smgr_(smgr) { }
 
 // Format and compile source code
 bool content_handlers::format_source_code( const std::string& origin_file ) {
+    std::cout << "Process File: " << origin_file << std::endl;
     std::string _output = utils::dirname(origin_file) + "_" + utils::filename(origin_file) + ".cpp";
     std::string _path = origin_file;
     if ( utils::is_string_start(_path, app.webroot) ) {
@@ -300,7 +298,7 @@ void content_handlers::load_handlers() {
         mh_ = dlopen(hlibpath_.c_str(), RTLD_LAZY | RTLD_GLOBAL);
         if ( !mh_ ) {
             std::cerr << dlerror() << std::endl;
-            exit(12);
+            loop::main.exit(12);
         }
         dlerror();
         // Load all handlers

@@ -102,6 +102,8 @@ AC_CHECK_LIB([peco], [PEUtils_Autoconf], [], [
     AC_MSG_FAILURE([could not find libpeco])
 ])
 AC_LANG_POP(C++)
+AC_SUBST([DHBOC_CXXFLAGS], ${CPPFLAGS})
+AC_SUBST([DHBOC_LDFLAGS], ${LDFLAGS})
 
 AC_CONFIG_FILES([Makefile])
 AC_OUTPUT

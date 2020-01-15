@@ -1,7 +1,9 @@
 AM_CXXFLAGS = \
 	-std=c++11 \
 	-Wall \
-	-fPIC	
+	-fPIC \
+	-DCXX_FLAGS="\"${DHBOC_CXXFLAGS}\"" \
+	-DLD_FLAGS="\"${DHBOC_LDFLAGS}\""
 
 lib_LTLIBRARIES = libdhboc.la
 libdhboc_la_SOURCES = \

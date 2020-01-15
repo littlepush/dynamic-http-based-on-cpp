@@ -139,7 +139,9 @@ int main( int argc, char* argv[] ) {
             }
             if ( !is_dir ) {
                 // Add to compile list
-                if ( !_ch.format_source_code(path) ) { exit(10); }
+                if ( !_ch.format_source_code(path) ) { 
+                    exit(10);
+                }
             }
             return true;
         }
