@@ -116,6 +116,9 @@ startupmgr::startupmgr( const std::string& startup_file, bool force_rebuild )
         std::cerr << "failed to make runtime folder: " << runtime_ << std::endl;
         return;
     }
+    // Make pieces path
+    utils::make_dir(runtime_ + "pieces");
+
     std::string _libname = (
         utils::filename(startup_file) + '.' + 
         std::to_string((long)utils::file_update_time(startup_file)) + 
@@ -222,6 +225,8 @@ bool content_handlers::format_source_code( const std::string& origin_file ) {
     _ofs << "extern \"C\"{" << std::endl;
     _ofs << "void __" << utils::md5(_path)
         << "(const http_request& req, http_response& resp) {" << std::endl;
+    _ofs << "    resp.body.is_chunked = true;" << std::endl;
+    std::string _piece_prefix = utils::md5(_path);
 
     // Load code
     std::ifstream _ifs(origin_file);
@@ -232,6 +237,7 @@ bool content_handlers::format_source_code( const std::string& origin_file ) {
     _ifs.close();
 
     size_t _le = 0;
+    size_t _pindex = 0;
     while ( _le != std::string::npos && _le < _code.size() ) {
         size_t _bpos = _code.find("{@", _le);
         size_t _epos = _bpos;
@@ -246,16 +252,29 @@ bool content_handlers::format_source_code( const std::string& origin_file ) {
         // We do find some code block after some html code
         if ( _bpos > _le && _bpos != std::string::npos ) {
             std::string _html = _code.substr(_le, _bpos - _le);
-            _ofs << "    resp.write(utils::gunzip_data(utils::base64_decode(\"" << 
-                utils::base64_encode(utils::gzip_data(_html))
-            << "\")));" << std::endl;
+
+            // Dump the html data to piece file
+            std::string _piece_name = _piece_prefix + "_" + std::to_string(_pindex);
+            _pindex += 1;
+            std::string _piece_path = smgr_->runtime + "pieces/" + _piece_name;
+            std::ofstream _pfs(_piece_path);
+            _pfs << _html;
+            _pfs.close();
+
+            _ofs << "    resp.body.load_file(\"" + _piece_path + "\");" << std::endl;
         }
         // Till end of code, no more code block
         if ( _bpos == std::string::npos && _le < _code.size() ) {
             std::string _html = _code.substr(_le);
-            _ofs << "    resp.write(utils::gunzip_data(utils::base64_decode(\"" << 
-                utils::base64_encode(utils::gzip_data(_html))
-            << "\")));" << std::endl;
+            // Dump the html data to piece file
+            std::string _piece_name = _piece_prefix + "_" + std::to_string(_pindex);
+            _pindex += 1;
+            std::string _piece_path = smgr_->runtime + "pieces/" + _piece_name;
+            std::ofstream _pfs(_piece_path);
+            _pfs << _html;
+            _pfs.close();
+
+            _ofs << "    resp.body.load_file(\"" + _piece_path + "\");" << std::endl;
             break;
         }
         // Update _le

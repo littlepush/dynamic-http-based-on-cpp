@@ -40,6 +40,7 @@ void server_worker( net::http_request& req ) {
     #ifdef DEBUG
     std::cout << req.method() << " " << req.path() << std::endl;
     #endif
+    this_task::begin_tick();
     http_response _resp;
     auto _pcode = g_startup->pre_request(req);
     if ( _pcode == http::CODE_000 ) {
@@ -68,6 +69,9 @@ void server_worker( net::http_request& req ) {
     // Do something before send response
     g_startup->final_response(req, _resp);
     net::http_server::send_response(_resp);
+
+    auto _time_used = this_task::tick();
+    std::cout << req.path() << " (" << _time_used << "ms)" << std::endl;
 }
 
 int main( int argc, char* argv[] ) {
