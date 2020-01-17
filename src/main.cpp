@@ -182,10 +182,12 @@ int main( int argc, char* argv[] ) {
             g_children_pmap.erase(_p);
         }
     } else {
-        _smgr.worker_initialization();
-        _ch.load_handlers();
-        loop::main.do_job(_lso, []() {
-            net::http_server::listen( &server_worker );
+        loop::main.do_job([&]() {
+            _smgr.worker_initialization();
+            _ch.load_handlers();
+            loop::main.do_job(_lso, []() {
+                net::http_server::listen( &server_worker );
+            });
         });
         loop::main.run();
     }

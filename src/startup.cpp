@@ -41,6 +41,10 @@ const std::string CC_DEFINES("-DRELEASE=1 -O3");
 
 // Compile source code, specified the input source file and the output obj path
 bool startupmgr::compile_source(const std::string& src, const std::string& obj, const char* ex) {
+    time_t _src_time = utils::file_update_time(src);
+    time_t _obj_time = utils::file_update_time(obj);
+    // Source file not change, do not need to re-compile
+    if ( _src_time < _obj_time ) return true; 
     std::vector< std::string > _cflags{
         CC, 
         "--std=c++11",
@@ -221,71 +225,77 @@ bool content_handlers::format_source_code( const std::string& origin_file ) {
     if ( utils::is_string_start(_path, app.webroot) ) {
         _path.erase(0, app.webroot.size() - 1);
     }
-    std::ofstream _ofs(_output);
-    _ofs << "extern \"C\"{" << std::endl;
-    _ofs << "void __" << utils::md5(_path)
-        << "(const http_request& req, http_response& resp) {" << std::endl;
-    _ofs << "    resp.body.is_chunked = true;" << std::endl;
-    std::string _piece_prefix = utils::md5(_path);
 
-    // Load code
-    std::ifstream _ifs(origin_file);
-    std::string _code(
-        (std::istreambuf_iterator<char>(_ifs)), 
-        (std::istreambuf_iterator<char>())
-    );
-    _ifs.close();
+    time_t _origin_time = utils::file_update_time(origin_file);
+    time_t _output_time = utils::file_update_time(_output);
+    // Only re-process the output file when we have a newer origin file
+    if ( _output_time < _origin_time ) {
+        std::ofstream _ofs(_output);
+        _ofs << "extern \"C\"{" << std::endl;
+        _ofs << "void __" << utils::md5(_path)
+            << "(const http_request& req, http_response& resp) {" << std::endl;
+        _ofs << "    resp.body.is_chunked = true;" << std::endl;
+        std::string _piece_prefix = utils::md5(_path);
 
-    size_t _le = 0;
-    size_t _pindex = 0;
-    while ( _le != std::string::npos && _le < _code.size() ) {
-        size_t _bpos = _code.find("{@", _le);
-        size_t _epos = _bpos;
-        if ( _bpos != std::string::npos ) {
-            _epos = _code.find("@}", _bpos);
-            if ( _epos == std::string::npos ) {
-                std::cerr << "error code block, missing `@}`" << std::endl;
-                std::cerr << "failed to format file: " << origin_file << std::endl;
-                return false;
+        // Load code
+        std::ifstream _ifs(origin_file);
+        std::string _code(
+            (std::istreambuf_iterator<char>(_ifs)), 
+            (std::istreambuf_iterator<char>())
+        );
+        _ifs.close();
+
+        size_t _le = 0;
+        size_t _pindex = 0;
+        while ( _le != std::string::npos && _le < _code.size() ) {
+            size_t _bpos = _code.find("{@", _le);
+            size_t _epos = _bpos;
+            if ( _bpos != std::string::npos ) {
+                _epos = _code.find("@}", _bpos);
+                if ( _epos == std::string::npos ) {
+                    std::cerr << "error code block, missing `@}`" << std::endl;
+                    std::cerr << "failed to format file: " << origin_file << std::endl;
+                    return false;
+                }
             }
+            // We do find some code block after some html code
+            if ( _bpos > _le && _bpos != std::string::npos ) {
+                std::string _html = _code.substr(_le, _bpos - _le);
+
+                // Dump the html data to piece file
+                std::string _piece_name = _piece_prefix + "_" + std::to_string(_pindex);
+                _pindex += 1;
+                std::string _piece_path = smgr_->runtime + "pieces/" + _piece_name;
+                std::ofstream _pfs(_piece_path);
+                _pfs << _html;
+                _pfs.close();
+
+                _ofs << "    resp.body.load_file(\"" + _piece_path + "\");" << std::endl;
+            }
+            // Till end of code, no more code block
+            if ( _bpos == std::string::npos && _le < _code.size() ) {
+                std::string _html = _code.substr(_le);
+                // Dump the html data to piece file
+                std::string _piece_name = _piece_prefix + "_" + std::to_string(_pindex);
+                _pindex += 1;
+                std::string _piece_path = smgr_->runtime + "pieces/" + _piece_name;
+                std::ofstream _pfs(_piece_path);
+                _pfs << _html;
+                _pfs.close();
+
+                _ofs << "    resp.body.load_file(\"" + _piece_path + "\");" << std::endl;
+                break;
+            }
+            // Update _le
+            _le = _epos;
+            if ( _le != std::string::npos ) _le += 2;
+
+            // Now we should copy the code
+            _ofs << _code.substr(_bpos + 2, _epos - _bpos - 2) << std::endl;
         }
-        // We do find some code block after some html code
-        if ( _bpos > _le && _bpos != std::string::npos ) {
-            std::string _html = _code.substr(_le, _bpos - _le);
 
-            // Dump the html data to piece file
-            std::string _piece_name = _piece_prefix + "_" + std::to_string(_pindex);
-            _pindex += 1;
-            std::string _piece_path = smgr_->runtime + "pieces/" + _piece_name;
-            std::ofstream _pfs(_piece_path);
-            _pfs << _html;
-            _pfs.close();
-
-            _ofs << "    resp.body.load_file(\"" + _piece_path + "\");" << std::endl;
-        }
-        // Till end of code, no more code block
-        if ( _bpos == std::string::npos && _le < _code.size() ) {
-            std::string _html = _code.substr(_le);
-            // Dump the html data to piece file
-            std::string _piece_name = _piece_prefix + "_" + std::to_string(_pindex);
-            _pindex += 1;
-            std::string _piece_path = smgr_->runtime + "pieces/" + _piece_name;
-            std::ofstream _pfs(_piece_path);
-            _pfs << _html;
-            _pfs.close();
-
-            _ofs << "    resp.body.load_file(\"" + _piece_path + "\");" << std::endl;
-            break;
-        }
-        // Update _le
-        _le = _epos;
-        if ( _le != std::string::npos ) _le += 2;
-
-        // Now we should copy the code
-        _ofs << _code.substr(_bpos + 2, _epos - _bpos - 2) << std::endl;
+        _ofs << "}}" << std::endl;        
     }
-
-    _ofs << "}}" << std::endl;
 
     std::string _obj = utils::dirname(origin_file) + utils::filename(origin_file) + OBJ_EXT;
     if ( smgr_->compile_source(_output, _obj) ) {
