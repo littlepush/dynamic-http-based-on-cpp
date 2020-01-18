@@ -203,7 +203,6 @@ int main( int argc, char* argv[] ) {
             });
         }
         loop::main.do_loop([&]() {
-            std::cout << "in content cache checker" << std::endl;
             for ( auto& cl : _ctnt_cache ) {
                 if ( cl.second == utils::file_update_time(cl.first) ) continue;
                 // Auto quit
