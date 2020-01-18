@@ -29,7 +29,7 @@ using namespace pe::co;
 
 bool g_isChild = false;
 std::string g_webroot;
-std::map< pid_t, bool > g_children_pmap;
+std::map< pid_t, int >      g_children_pmap;
 startupmgr *g_startup = NULL;
 content_handlers *g_ch = NULL;
 
@@ -128,9 +128,12 @@ int main( int argc, char* argv[] ) {
 
     content_handlers _ch(&_smgr);
     g_ch = &_ch;
+    std::map< std::string, time_t > _ctnt_cache;
+    _ctnt_cache[_startup] = utils::file_update_time(_startup);
+
     utils::rek_scan_dir(
         _workroot, 
-        [&_ch, _startup](const std::string& path, bool is_dir) -> bool {
+        [&_ch, _startup, &_ctnt_cache](const std::string& path, bool is_dir) -> bool {
             if ( path == _startup ) return false;
             // Ignore object file
             if ( utils::extension(path) == "o" ) return false;
@@ -141,6 +144,7 @@ int main( int argc, char* argv[] ) {
                 // Same path, ignore all 
                 if ( _ep == path ) return false;
             }
+            _ctnt_cache[path] = utils::file_update_time(path);
             if ( !is_dir ) {
                 // Add to compile list
                 if ( !_ch.format_source_code(path) ) { 
@@ -159,28 +163,59 @@ int main( int argc, char* argv[] ) {
     net::SOCKET_T _lso = net::tcp::create( _li );
 
     for ( int i = 0; i < app.workers; ++i ) {
+        // Create pipe to child
+        int _c2p_out[2];
+        ignore_result(pipe(_c2p_out));
         pid_t _pid = fork();
         if ( _pid < 0 ) {
             std::cerr << "failed to fork child process." << std::endl;
+            ::close(_c2p_out[0]); ::close(_c2p_out[1]);
             return 1;
         }
         if ( _pid > 0 ) {   // Success on create new worker
-            g_children_pmap[_pid] = true;
+            parent_pipe_for_read(_c2p_out);
+            // Store the read pipe
+            g_children_pmap[_pid] = _c2p_out[PIPE_READ_FD];
             continue;
         }
         g_isChild = true;
+        // Bind self's out pipe to stdout, so when
+        // the child exit, the pipe will also been closed.
+        child_dup_for_read(_c2p_out, STDOUT_FILENO);
         break;  // Im a child process, no need to fork again.
     }
 
     if ( !g_isChild ) {
-        while ( g_children_pmap.size() > 0 ) {
-            int _cestatus;
-            pid_t _p = wait(&_cestatus);
-            #ifdef DEBUG
-            std::cout << "worker " << _p << " exited: " << _cestatus << std::endl;
-            #endif
-            g_children_pmap.erase(_p);
+        std::cout << "in parent process" << std::endl;
+        for ( auto& cp : g_children_pmap ) {
+            loop::main.do_job(cp.second, []() {
+                while ( true ) {
+                    auto _sig = this_task::wait_for_event(
+                        event_read, std::chrono::milliseconds(1000)
+                    );
+                    if ( _sig == no_signal ) continue;
+                    if ( _sig == bad_signal ) break;
+                    std::string _buf = std::forward< std::string >(pipe_read(this_task::get_id()));
+                    // Pipe closed
+                    if ( _buf.size() == 0 ) break;
+                    std::cout << _buf;
+                }
+            });
         }
+        loop::main.do_loop([&]() {
+            std::cout << "in content cache checker" << std::endl;
+            for ( auto& cl : _ctnt_cache ) {
+                if ( cl.second == utils::file_update_time(cl.first) ) continue;
+                // Auto quit
+                std::cout << "content changed, send kill signal" << std::endl;
+                for ( auto& c : g_children_pmap ) {
+                    kill( c.first, SIGINT );
+                }
+                this_task::cancel_loop();
+                break;
+            }
+        }, std::chrono::seconds(1));
+        loop::main.run();
     } else {
         loop::main.do_job([&]() {
             _smgr.worker_initialization();
