@@ -206,7 +206,7 @@ int main( int argc, char* argv[] ) {
             for ( auto& cl : _ctnt_cache ) {
                 if ( cl.second == utils::file_update_time(cl.first) ) continue;
                 // Auto quit
-                std::cout << "content changed, send kill signal" << std::endl;
+                std::cout << "content: " << cl.first << " changed, send kill signal" << std::endl;
                 for ( auto& c : g_children_pmap ) {
                     kill( c.first, SIGINT );
                 }
