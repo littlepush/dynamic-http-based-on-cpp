@@ -32,10 +32,18 @@ const std::string EX_FLAGS(LD_FLAGS);
 #endif
 
 #ifdef DEBUG
+#ifdef __APPLE__
+const std::string OBJ_EXT(".darwin.debug.o");
+#else
 const std::string OBJ_EXT(".debug.o");
+#endif
 const std::string CC_DEFINES("-DDEBUG=1 -Og");
 #else
+#ifdef __APPLE__
+const std::string OBJ_EXT(".darwin.o");
+#else
 const std::string OBJ_EXT(".o");
+#endif
 const std::string CC_DEFINES("-DRELEASE=1 -O3");
 #endif
 
