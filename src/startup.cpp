@@ -130,6 +130,8 @@ startupmgr::startupmgr( const std::string& startup_file, bool force_rebuild )
     }
     // Make pieces path
     utils::make_dir(runtime_ + "pieces");
+    utils::make_dir(runtime_ + "objs");
+    utils::make_dir(runtime_ + "src");
 
     std::string _libname = (
         utils::filename(startup_file) + '.' + 
@@ -159,7 +161,8 @@ startupmgr::startupmgr( const std::string& startup_file, bool force_rebuild )
         }
         std::vector< std::string > _objs;
         for ( const auto& sp : _src_files ) {
-            std::string _obj = utils::dirname(sp) + utils::filename(sp) + OBJ_EXT;
+            std::string _obj = runtime_ + "objs/" + utils::md5(sp) + OBJ_EXT;
+            // std::string _obj = utils::dirname(sp) + utils::filename(sp) + OBJ_EXT;
             if ( ! this->compile_source(sp, _obj) ) return;
             _objs.emplace_back(std::move(_obj));
         }
@@ -228,11 +231,11 @@ content_handlers::content_handlers(startupmgr * smgr) : smgr_(smgr) { }
 // Format and compile source code
 bool content_handlers::format_source_code( const std::string& origin_file ) {
     std::cout << "Process File: " << origin_file << std::endl;
-    std::string _output = utils::dirname(origin_file) + "_" + utils::filename(origin_file) + ".cpp";
     std::string _path = origin_file;
     if ( utils::is_string_start(_path, app.webroot) ) {
         _path.erase(0, app.webroot.size() - 1);
     }
+    std::string _output = smgr_->runtime + "src/" + utils::md5(_path) + ".cpp";
 
     time_t _origin_time = utils::file_update_time(origin_file);
     time_t _output_time = utils::file_update_time(_output);
@@ -305,7 +308,7 @@ bool content_handlers::format_source_code( const std::string& origin_file ) {
         _ofs << "}}" << std::endl;        
     }
 
-    std::string _obj = utils::dirname(origin_file) + utils::filename(origin_file) + OBJ_EXT;
+    std::string _obj = smgr_->runtime + "objs/" + utils::md5(_path) + OBJ_EXT;
     if ( smgr_->compile_source(_output, _obj) ) {
         // Register the handler list
         handler_names_[_path] = "__" + utils::md5(_path);
