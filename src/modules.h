@@ -12,7 +12,7 @@
 #ifndef DHBOC_MODULES_H__
 #define DHBOC_MODULES_H__
 
-#include "application.h"
+#include "dhboc.h"
 
 typedef void *                  module_t;
 

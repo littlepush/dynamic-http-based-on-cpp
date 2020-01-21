@@ -12,91 +12,91 @@
 #ifndef DHBOC_STARTUP_H__
 #define DHBOC_STARTUP_H__
 
-#include "application.h"
+#include "dhboc.h"
 #include "modules.h"
 
 extern const std::string EXT_NAME;
 extern const std::string CC;
 extern const std::string INC_ROOT;
-extern const std::string EX_DEFINES;
 extern const std::string EX_FLAGS;
 extern const std::string OBJ_EXT;
 extern const std::string CC_DEFINES;
 
-// manager of the startup module
+/*
+ Startup Manager
+ Manager the main entry point lib of the web
+ Will maintain the runtime folder
+ also provide the method to compile any source code
+*/
 class startupmgr {
+public:
+    // Pre Request
     typedef http::CODE(*pre_request_t)( http_request& );
+    // Final response
     typedef void(*final_response_t)( http_request&, http_response& );
-    typedef void(*worker_init_t)();
+    // Initial worker
+    typedef void(*worker_init_t)(int);
 
 protected: 
-    bool                    done_;
     module_t                hstartup_;
     pre_request_t           hrequest_;
     final_response_t        hresponse_;
 
-    std::string             startup_;
-    std::string             webroot_;
-    std::string             runtime_;
-    std::string             serverpath_;
-    std::string             libpath_;
+    std::string             startup_file_;
+    std::string             webroot_path_;
+    std::string             runtime_path_;
+    std::string             piece_path_;
+    std::string             src_path_;
+    std::string             obj_path_;
+    std::string             server_path_;
+    std::string             lib_path_;
 
+protected:
+
+    // Singleton
+    startupmgr( );
+    static startupmgr& _s_();
 
 public: 
-    // Init the startup manager with the input file
-    startupmgr( const std::string& startup_file, bool force_rebuild = false );
     ~startupmgr();
 
-    const std::string& webroot;
-    const std::string& runtime;
-    const std::string& serverpath;
-    const std::string& libpath;
+    // All runtime paths
+    static const std::string& webroot_dir();
+    static const std::string& runtime_dir();
+    static const std::string& piece_dir();
+    static const std::string& source_dir();
+    static const std::string& object_dir();
+    static const std::string& server_dir();
+    static const std::string& lib_path();
 
-    // Check if the startup module has been loaded
-    operator bool () const;
+    // Load the startup file and initialize everything
+    static bool load_startup_file( const std::string& sf, bool force_rebuild = false );
 
     // Initialize the worker process
-    bool worker_initialization();
+    static bool worker_initialization( int index );
 
     // Pre request handler
-    http::CODE pre_request( http_request& req );
+    static http::CODE pre_request( http_request& req );
 
     // Final Response handler
-    void final_response( http_request& req, http_response& resp );
+    static void final_response( http_request& req, http_response& resp );
+
+    // Search for handler with specified name
+    static http_handler search_handler( const std::string& hname );
 
     // Compile source code, specified the input source file and the output obj path
-    bool compile_source(const std::string& src, const std::string& obj, const char* ex = NULL);
+    static bool compile_source(
+        const std::string& src, 
+        const std::string& obj, 
+        const char* ex = NULL
+    );
 
     // Link and create a shared library
-    bool create_library(
+    static bool create_library(
         const std::vector<std::string>& objs, 
         const std::string& libpath, 
         const char* ex = NULL
     );
-};
-
-class content_handlers {
-    startupmgr                              *smgr_;
-    module_t                                mh_;
-    std::string                             hlibpath_;
-    std::vector< std::string >              objs_;
-    std::map< std::string, std::string >    handler_names_;
-    std::map< std::string, http_handler >   handlers_;
-public: 
-    // Create a content handler with the startup manager
-    content_handlers( startupmgr* smgr );
-
-    // Format and compile source code
-    bool format_source_code( const std::string& origin_file );
-
-    // Create handler lib
-    bool build_handler_lib( );
-
-    // Load the handler in worker
-    void load_handlers();
-
-    // Try to search the handler and run
-    bool try_find_handler(const http_request& req, http_response& resp);
 };
 
 #endif 

@@ -9,7 +9,7 @@
 #include "startup.h"
 #include <dlfcn.h>
 
-application_t app;
+typedef void(*startup_initialize)( );
 
 #ifdef __APPLE__
 #ifdef DEBUG
@@ -37,18 +37,45 @@ const std::string OBJ_EXT(".darwin.debug.o");
 #else
 const std::string OBJ_EXT(".debug.o");
 #endif
-const std::string CC_DEFINES("-DDEBUG=1 -Og");
+const std::string CC_DEFINES("-DDEBUG=1 -g");
 #else
 #ifdef __APPLE__
 const std::string OBJ_EXT(".darwin.o");
 #else
 const std::string OBJ_EXT(".o");
 #endif
-const std::string CC_DEFINES("-DRELEASE=1 -O3");
+const std::string CC_DEFINES("-DRELEASE=1 -g -O2");
 #endif
 
+// All runtime paths
+const std::string& startupmgr::webroot_dir() {
+    return startupmgr::_s_().webroot_path_;
+}
+const std::string& startupmgr::runtime_dir() {
+    return startupmgr::_s_().runtime_path_;
+}
+const std::string& startupmgr::piece_dir() {
+    return startupmgr::_s_().piece_path_;
+}
+const std::string& startupmgr::source_dir() {
+    return startupmgr::_s_().src_path_;
+}
+const std::string& startupmgr::object_dir() {
+    return startupmgr::_s_().obj_path_;
+}
+const std::string& startupmgr::server_dir() {
+    return startupmgr::_s_().server_path_;
+}
+const std::string& startupmgr::lib_path() {
+    return startupmgr::_s_().lib_path_;
+}
+
 // Compile source code, specified the input source file and the output obj path
-bool startupmgr::compile_source(const std::string& src, const std::string& obj, const char* ex) {
+bool startupmgr::compile_source(
+    const std::string& src, 
+    const std::string& obj, 
+    const char* ex
+) {
     time_t _src_time = utils::file_update_time(src);
     time_t _obj_time = utils::file_update_time(obj);
     // Source file not change, do not need to re-compile
@@ -63,14 +90,14 @@ bool startupmgr::compile_source(const std::string& src, const std::string& obj, 
         CC_DEFINES,
         INC_ROOT,
         modulemgr::compile_flags(),
-        "-include dhboc/application.h"
+        "-include dhboc/dhboc.h"
     };
     // Include all files
     for ( const auto& i : modulemgr::include_files() ) {
         _cflags.push_back(std::string("-include ") + i);
     }
     for ( const auto& i : app.pre_includes ) {
-        _cflags.push_back(std::string("-include ") + webroot_ + i);
+        _cflags.push_back(std::string("-include ") + startupmgr::webroot_dir() + i);
     }
     if ( ex != NULL ) _cflags.push_back(std::string(ex));
     _cflags.push_back("-c");
@@ -103,7 +130,7 @@ bool startupmgr::create_library(
     }
     _linkflags.push_back(EX_FLAGS);
     _linkflags.push_back(modulemgr::link_flags());
-    _linkflags.push_back("-lz -lssl -lcrypto -lresolv -lpeco -ldhboc");
+    _linkflags.push_back("-lz -lssl -lcrypto -lpeco -ldhboc");
     if ( ex != NULL ) _linkflags.push_back(std::string(ex));
 
     std::string _link_cmd = utils::join(_linkflags.begin(), _linkflags.end(), " ");
@@ -115,264 +142,186 @@ bool startupmgr::create_library(
     return (0 == system(_link_cmd.c_str()));
 }
 
-// // manager of the startup module
-startupmgr::startupmgr( const std::string& startup_file, bool force_rebuild )
-    : done_(false), hstartup_(NULL), hrequest_(NULL), hresponse_(NULL), startup_(startup_file), 
-    webroot(webroot_), runtime(runtime_), serverpath(serverpath_), libpath(libpath_)
-{
-    webroot_ = utils::dirname(startup_file);
-    if ( *(webroot_.rbegin()) != '/' ) webroot_ += '/';
-    runtime_ = webroot_ + ".runtime/";
-    if ( force_rebuild ) { utils::fs_remove(runtime_); }
-    if ( !utils::rek_make_dir(runtime_) ) {
-        std::cerr << "failed to make runtime folder: " << runtime_ << std::endl;
-        return;
+
+// Load the startup file and initialize everything
+bool startupmgr::load_startup_file( const std::string& sf, bool force_rebuild ) {
+    // Get the singleton object
+    startupmgr& _s = startupmgr::_s_();
+    // Initialize everything
+    // std::string             startup_file_;
+    _s.startup_file_ = sf;
+    // std::string             webroot_path_;
+    _s.webroot_path_ = utils::dirname(sf);
+    if ( *(_s.webroot_path_.rbegin()) != '/' ) {
+        _s.webroot_path_ += '/';
     }
-    // Make pieces path
-    utils::make_dir(runtime_ + "pieces");
-    utils::make_dir(runtime_ + "objs");
-    utils::make_dir(runtime_ + "src");
-
-    std::string _libname = (
-        utils::filename(startup_file) + '.' + 
-        std::to_string((long)utils::file_update_time(startup_file)) + 
-        EXT_NAME
-        );
-
-    libpath_ = runtime_ + _libname;
-    if ( !utils::is_file_existed(libpath_) ) {
-        // Compile it
-        // Try to find all source code files
-        std::vector<std::string> _src_files;
-        _src_files.push_back(startup_file);
-        std::string _server_path = webroot_ + "_server";
-        if ( utils::is_folder_existed(_server_path) ) {
-            utils::rek_scan_dir(
-                _server_path, 
-                [&_src_files](const std::string& path, bool is_dir) {
-                    if ( is_dir ) return true;
-                    std::string _ext = utils::extension(path);
-                    if ( _ext == "cpp" || _ext == "c" ) {
-                        _src_files.push_back(path);
+    // std::string             runtime_path_;
+    _s.runtime_path_ = _s.webroot_path_ + ".runtime/";
+    if ( force_rebuild ) {
+        utils::fs_remove(_s.runtime_path_);
+    }
+    if ( ! utils::rek_make_dir(_s.runtime_path_) ) {
+        std::cerr << "failed to make runtime folder: " 
+            << _s.runtime_path_ << std::endl;
+        return false;
+    }
+    // std::string             piece_path_;
+    _s.piece_path_ = _s.runtime_path_ + "pieces/";
+    utils::make_dir( _s.piece_path_ );
+    // std::string             src_path_;
+    _s.src_path_ = _s.runtime_path_ + "src/";
+    utils::make_dir( _s.src_path_ );
+    // std::string             obj_path_;
+    _s.obj_path_ = _s.runtime_path_ + "objs/";
+    utils::make_dir( _s.obj_path_ );
+    // std::string             server_path_;
+    std::string _spath = _s.webroot_path_ + "_server/";
+    std::vector< std::string > _web_sources;
+    _web_sources.push_back(sf);
+    time_t _last_update_time = utils::file_update_time(sf);
+    bool _header_is_newer = false;
+    if ( utils::is_folder_existed(_spath) ) {
+        utils::rek_scan_dir(
+            _spath, 
+            [&_last_update_time, &_header_is_newer, &_web_sources]
+            (const std::string& p, bool d) {
+                if ( d ) return true;
+                std::string _ext = utils::extension(p);
+                if ( _ext == "cpp" || _ext == "c" ) {
+                    _web_sources.push_back(p);
+                    time_t _u = utils::file_update_time(p);
+                    if ( _u > _last_update_time ) {
+                        _last_update_time = _u;
+                        _header_is_newer = false;
                     }
-                    return true;
+                } else if ( _ext == "h" || _ext == "hpp" ) {
+                    time_t _u = utils::file_update_time(p);
+                    if ( _u > _last_update_time ) {
+                        _last_update_time = _u;
+                        _header_is_newer = true;
+                    }
                 }
-            );
-        }
-        std::vector< std::string > _objs;
-        for ( const auto& sp : _src_files ) {
-            std::string _obj = runtime_ + "objs/" + utils::md5(sp) + OBJ_EXT;
-            // std::string _obj = utils::dirname(sp) + utils::filename(sp) + OBJ_EXT;
-            if ( ! this->compile_source(sp, _obj) ) return;
-            _objs.emplace_back(std::move(_obj));
-        }
-        if ( ! this->create_library(_objs, libpath_) ) return;
+                return true;
+            }
+        );
+        _s.server_path_ = _spath;
     }
-    // Load the startup module
-    hstartup_ = dlopen(libpath_.c_str(), RTLD_LAZY | RTLD_GLOBAL);
-    if ( !hstartup_ ) {
+    // std::string             lib_path_;
+    std::string _libname = (
+        utils::filename(sf) + '.' + 
+        std::to_string((long)_last_update_time) + 
+        EXT_NAME
+    );
+    _s.lib_path_ = _s.runtime_path_ + _libname;
+
+    // Check if need to rebuild the lib
+    if ( !utils::is_file_existed( _s.lib_path_ ) ) {
+        // Build it
+        if ( _header_is_newer ) {
+            // Remove all old objects
+            utils::fs_remove( _s.obj_path_ );
+            utils::make_dir( _s.obj_path_ );
+        }
+
+        std::vector< std::string > _objs;
+        for ( const auto& s : _web_sources ) {
+            std::string _o = startupmgr::object_dir() + utils::md5(s) + OBJ_EXT;
+            if ( ! startupmgr::compile_source(s, _o) ) {
+                return false;
+            }
+            _objs.emplace_back(std::move(_o));
+        }
+
+        if ( ! startupmgr::create_library( _objs, _s.lib_path_ ) ) {
+            return false;
+        }
+    }
+
+    // Load and initialize app
+    _s.hstartup_ = dlopen(_s.lib_path_.c_str(), RTLD_LAZY | RTLD_GLOBAL);
+    if ( !_s.hstartup_ ) {
         std::cerr << "failed to load the startup module" << std::endl;
-        return;
+        return false;
     }
     dlerror();
-    startup_initialize _initf = (startup_initialize)dlsym(hstartup_, "__initialize");
+    startup_initialize _initf = (startup_initialize)dlsym(_s.hstartup_, "dhboc_initialize");
     const char* _sym_error = dlerror();
     if ( _sym_error ) {
         std::cerr << "invalidate startup module: " << _sym_error << std::endl;
-        return;
+        return false;
     }
 
+    app.domain = "";
     app.address = "0.0.0.0:8883";
     app.workers = 2;
-    app.webroot = webroot_;
-    app.runtime = runtime_;
+    app.router.clear();
+    app.code.clear();
+    app.webroot = startupmgr::webroot_dir();
+    app.runtime = startupmgr::runtime_dir();
+    app.exclude_path.clear();
+    app.pre_includes.clear();
+    app.ctnt_exts.clear();
     _initf();
-    dlclose(hstartup_);
-    hstartup_ = NULL;
-    done_ = true;
+    dlclose(_s.hstartup_);
+    _s.hstartup_ = NULL;
+
+    return true;
 }
+
 startupmgr::~startupmgr() {
     // Close the startup module
     if ( hstartup_ ) dlclose(hstartup_);
 }
 
-// Check if the startup module has been loaded
-startupmgr::operator bool () const { return done_; }
-
 // Initialize the worker process
-bool startupmgr::worker_initialization() {
-    if ( !done_ ) return false;
-    hstartup_ = dlopen(libpath_.c_str(), RTLD_LAZY | RTLD_GLOBAL);
-    hrequest_ = (pre_request_t)dlsym(hstartup_, "__pre_request");
-    hresponse_ = (final_response_t)dlsym(hstartup_, "__final_response");
+bool startupmgr::worker_initialization( int index ) {
+    // Get the singleton object
+    startupmgr& _s = startupmgr::_s_();
+
+    _s.hstartup_ = dlopen(_s.lib_path_.c_str(), RTLD_LAZY | RTLD_GLOBAL);
+    _s.hrequest_ = (pre_request_t)dlsym(_s.hstartup_, "dhboc_pre_request");
+    _s.hresponse_ = (final_response_t)dlsym(_s.hstartup_, "dhboc_final_response");
 
     // Try to find startup
-    worker_init_t _init = (worker_init_t)dlsym(hstartup_, "__startup");
+    worker_init_t _init = (worker_init_t)dlsym(_s.hstartup_, "dhboc_worker_startup");
     if ( !_init ) return false;
-    _init();
+    _init( index );
 
     return true;
 }
 
 // Pre request handler
 http::CODE startupmgr::pre_request( http_request& req ) {
-    if ( hrequest_ ) return hrequest_(req);
+    if ( startupmgr::_s_().hrequest_ ) {
+        return startupmgr::_s_().hrequest_(req);
+    }
     return http::CODE_000;
 }
 
 // Final Response handler
 void startupmgr::final_response( http_request& req, http_response& resp ) {
-    if ( hresponse_ ) hresponse_(req, resp);
-}
-
-// Create a content handler with the startup manager
-content_handlers::content_handlers(startupmgr * smgr) : smgr_(smgr) { }
-
-// Format and compile source code
-bool content_handlers::format_source_code( const std::string& origin_file ) {
-    std::cout << "Process File: " << origin_file << std::endl;
-    std::string _path = origin_file;
-    if ( utils::is_string_start(_path, app.webroot) ) {
-        _path.erase(0, app.webroot.size() - 1);
-    }
-    std::string _output = smgr_->runtime + "src/" + utils::md5(_path) + ".cpp";
-
-    time_t _origin_time = utils::file_update_time(origin_file);
-    time_t _output_time = utils::file_update_time(_output);
-    // Only re-process the output file when we have a newer origin file
-    if ( _output_time < _origin_time ) {
-        std::ofstream _ofs(_output);
-        _ofs << "extern \"C\"{" << std::endl;
-        _ofs << "void __" << utils::md5(_path)
-            << "(const http_request& req, http_response& resp) {" << std::endl;
-        _ofs << "    resp.body.is_chunked = true;" << std::endl;
-        std::string _piece_prefix = utils::md5(_path);
-
-        // Load code
-        std::ifstream _ifs(origin_file);
-        std::string _code(
-            (std::istreambuf_iterator<char>(_ifs)), 
-            (std::istreambuf_iterator<char>())
-        );
-        _ifs.close();
-
-        size_t _le = 0;
-        size_t _pindex = 0;
-        while ( _le != std::string::npos && _le < _code.size() ) {
-            size_t _bpos = _code.find("{@", _le);
-            size_t _epos = _bpos;
-            if ( _bpos != std::string::npos ) {
-                _epos = _code.find("@}", _bpos);
-                if ( _epos == std::string::npos ) {
-                    std::cerr << "error code block, missing `@}`" << std::endl;
-                    std::cerr << "failed to format file: " << origin_file << std::endl;
-                    return false;
-                }
-            }
-            // We do find some code block after some html code
-            if ( _bpos > _le && _bpos != std::string::npos ) {
-                std::string _html = _code.substr(_le, _bpos - _le);
-
-                // Dump the html data to piece file
-                std::string _piece_name = _piece_prefix + "_" + std::to_string(_pindex);
-                _pindex += 1;
-                std::string _piece_path = smgr_->runtime + "pieces/" + _piece_name;
-                std::ofstream _pfs(_piece_path);
-                _pfs << _html;
-                _pfs.close();
-
-                _ofs << "    resp.body.load_file(\"" + _piece_path + "\");" << std::endl;
-            }
-            // Till end of code, no more code block
-            if ( _bpos == std::string::npos && _le < _code.size() ) {
-                std::string _html = _code.substr(_le);
-                // Dump the html data to piece file
-                std::string _piece_name = _piece_prefix + "_" + std::to_string(_pindex);
-                _pindex += 1;
-                std::string _piece_path = smgr_->runtime + "pieces/" + _piece_name;
-                std::ofstream _pfs(_piece_path);
-                _pfs << _html;
-                _pfs.close();
-
-                _ofs << "    resp.body.load_file(\"" + _piece_path + "\");" << std::endl;
-                break;
-            }
-            // Update _le
-            _le = _epos;
-            if ( _le != std::string::npos ) _le += 2;
-
-            // Now we should copy the code
-            _ofs << _code.substr(_bpos + 2, _epos - _bpos - 2) << std::endl;
-        }
-
-        _ofs << "}}" << std::endl;        
-    }
-
-    std::string _obj = smgr_->runtime + "objs/" + utils::md5(_path) + OBJ_EXT;
-    if ( smgr_->compile_source(_output, _obj) ) {
-        // Register the handler list
-        handler_names_[_path] = "__" + utils::md5(_path);
-        objs_.emplace_back(std::move(_obj));
-        return true;
-    }
-    return false;
-}
-
-// Create handler lib
-bool content_handlers::build_handler_lib( ) {
-    hlibpath_ = smgr_->runtime + "handlers" + EXT_NAME;
-    if ( objs_.size() > 0 ) {
-        // Try to create the final lib
-        return smgr_->create_library(objs_, hlibpath_, smgr_->libpath.c_str());
-    }
-    return true;
-}
-
-// Load the handler in worker
-void content_handlers::load_handlers() {
-    // Load handlers
-    if ( utils::is_file_existed(hlibpath_) ) {
-        #ifdef DEBUG
-        std::cout << "in workers, try to load handler lib: " << hlibpath_ << std::endl;
-        #endif
-        mh_ = dlopen(hlibpath_.c_str(), RTLD_LAZY | RTLD_GLOBAL);
-        if ( !mh_ ) {
-            std::cerr << dlerror() << std::endl;
-            loop::main.exit(12);
-        }
-        dlerror();
-        // Load all handlers
-        for ( const auto& pn : handler_names_ ) {
-            http_handler _h = (http_handler)dlsym(mh_, pn.second.c_str());
-            if ( !_h ) {
-                const char* _sym_error = dlerror();
-                std::cerr << _sym_error << std::endl;
-                if ( _sym_error ) throw std::string(_sym_error);
-            }
-            handlers_[pn.first] = _h;
-        }
+    if ( startupmgr::_s_().hresponse_ ) {
+        startupmgr::_s_().hresponse_(req, resp);
     }
 }
 
-// Try to search the handler and run
-bool content_handlers::try_find_handler(const http_request& req, http_response& resp) {
-    #ifdef DEBUG
-    std::cout << "try to find handler for path: " << req.path() << std::endl;
-    #endif
-    auto _h = handlers_.find(req.path());
-    if ( _h == handlers_.end() ) return false;
-    #ifdef DEBUG
-    std::cout << "do find the handler for path: " << req.path() << std::endl;
-    #endif
-    if ( _h->second == NULL ) {
-        #ifdef DEBUG
-        std::cout << "but the handler is NULL for path: " << req.path();
-        std::cout << ", handler name should be: " << handler_names_[req.path()] << std::endl;
-        #endif
-        return false;
-    }
-    _h->second(req, resp);
-    return true;
+// Search for handler with specified name
+http_handler startupmgr::search_handler( const std::string& hname ) {
+    // Get the singleton object
+    startupmgr& _s = startupmgr::_s_();
+    if ( _s.hstartup_ == NULL ) return NULL;
+    http_handler _h = (http_handler)dlsym(_s.hstartup_, hname.c_str());
+    if ( _h == NULL ) return NULL;
+    return _h;
+}
+
+// Singleton
+startupmgr::startupmgr() :
+    hstartup_(NULL), hrequest_(NULL), hresponse_(NULL) 
+{ }
+
+startupmgr& startupmgr::_s_() {
+    static startupmgr _s; return _s;
 }
 
 // Push Chen

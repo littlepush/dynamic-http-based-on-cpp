@@ -8,12 +8,15 @@ AM_CXXFLAGS = \
 lib_LTLIBRARIES = libdhboc.la
 libdhboc_la_SOURCES = \
 	src/modules.cpp \
-	src/startup.cpp
+	src/startup.cpp \
+	src/handler.cpp \
+	src/dhboc.cpp
 
 pkginclude_HEADERS = \
-	src/application.h \
+	src/dhboc.h \
 	src/modules.h \
-	src/startup.h
+	src/startup.h \
+	src/handler.h
 
 bin_PROGRAMS = dhboc
 dhboc_LDADD = libdhboc.la

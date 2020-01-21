@@ -18,7 +18,7 @@ AC_CANONICAL_HOST
 LT_INIT
 
 # Check if this is the source dir
-AC_CONFIG_SRCDIR([src/application.h])
+AC_CONFIG_SRCDIR([src/dhboc.h])
 
 AS_IF([test "x${prefix}" != "xNONE"], [
     CPPFLAGS="-I${prefix}/include ${CPPFLAGS}"
