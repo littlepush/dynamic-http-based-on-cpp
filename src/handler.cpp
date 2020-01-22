@@ -51,7 +51,6 @@ void content_handlers::ignore_file( const std::string& ifile ) {
 
 // Scan the webroot to find all files
 bool content_handlers::scan_webroot() {
-
     // Clear everything
     content_handlers::_s_().objs_.clear();
     content_handlers::_s_().handler_names_.clear();
@@ -133,7 +132,7 @@ bool content_handlers::format_source_code( const std::string& origin_file ) {
         _ofs << "extern \"C\"{" << std::endl;
         _ofs << "void __" << utils::md5(_path)
             << "(const http_request& req, http_response& resp) {" << std::endl;
-        _ofs << "    resp.body.is_chunked = true;" << std::endl;
+        // _ofs << "    resp.body.is_chunked = true;" << std::endl;
         std::string _piece_prefix = utils::md5(_path);
 
         // Load code
