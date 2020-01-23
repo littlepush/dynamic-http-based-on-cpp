@@ -98,6 +98,11 @@ void return_array( http_response& resp, const std::vector<T>& array ) {
     make_response( resp, _node );
 }
 
+// Use asctime to format the timestamp
+std::string dhboc_time_string( time_t t );
+// Use asctime to format the timestamp
+std::string dhboc_time_string( const std::string& ts );
+
 #endif
 
 // Push Chen

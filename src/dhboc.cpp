@@ -85,4 +85,15 @@ void return_data( http_response& resp, const std::map< std::string, std::string 
     make_response(resp, _data);
 }
 
+// Use asctime to format the timestamp
+std::string dhboc_time_string( time_t t ) {
+    return std::string(ctime(&t));
+    // struct tm *_tm = std::localtime(&t);
+    // return std::string( ::asctime(_tm) );
+}
+// Use asctime to format the timestamp
+std::string dhboc_time_string( const std::string& ts ) {
+    return dhboc_time_string( (time_t)std::stoi(ts) );
+}
+
 // Push Chen

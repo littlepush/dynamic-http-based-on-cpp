@@ -140,8 +140,9 @@ bool _dhboc_forever( const std::string& startup, bool force_rebuild ) {
     }
 
     // Wait for all children to exit
+    std::map< pid_t, task * > _pipe_cache;
     for ( auto& cp : _children_pmap ) {
-        loop::main.do_job(cp.second, []() {
+        _pipe_cache[cp.first] = loop::main.do_job(cp.second, []() {
             while ( true ) {
                 auto _sig = this_task::wait_for_event(
                     event_read, std::chrono::milliseconds(1000)
@@ -162,7 +163,11 @@ bool _dhboc_forever( const std::string& startup, bool force_rebuild ) {
         // Auto quit
         std::cout << "content changed, send kill signal" << std::endl;
         for ( auto& c : _children_pmap ) {
-            kill( c.first, SIGINT );
+            std::cout << "kill subprocess: " << c.first << std::endl;
+            task_exit(_pipe_cache[c.first]);
+            kill( c.first, SIGTERM );
+            int _sig;
+            ignore_result(wait(&_sig));
         }
         this_task::cancel_loop();
     }, std::chrono::seconds(1));
