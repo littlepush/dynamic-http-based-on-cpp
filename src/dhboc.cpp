@@ -9,6 +9,7 @@
 
 #include "dhboc.h"
 #include "handler.h"
+#include <iomanip>
 
 // Global App Object
 application_t app;
@@ -87,8 +88,18 @@ void return_data( http_response& resp, const std::map< std::string, std::string 
 
 // Use asctime to format the timestamp
 std::string dhboc_time_string( time_t t ) {
-    return std::string(ctime(&t));
-    // struct tm *_tm = std::localtime(&t);
+    if ( t == 0 ) return std::string("N/A");
+    // return std::string(ctime(&t));
+    struct tm _tm = *std::localtime(&t);
+    std::stringstream _tss;
+    _tss << 
+        std::setfill('0') << std::setw(4) << _tm.tm_year + 1900 << "/" <<
+        std::setfill('0') << std::setw(2) << _tm.tm_mon + 1 << "/" <<
+        std::setfill('0') << std::setw(2) << _tm.tm_mday << " " <<
+        std::setfill('0') << std::setw(2) << _tm.tm_hour << ":" <<
+        std::setfill('0') << std::setw(2) << _tm.tm_min << ":" <<
+        std::setfill('0') << std::setw(2) << _tm.tm_sec;
+    return _tss.str();
     // return std::string( ::asctime(_tm) );
 }
 // Use asctime to format the timestamp
