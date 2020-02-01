@@ -251,7 +251,7 @@ namespace dhboc { namespace redis {
         redis_connector_t rg,
         const std::string& name, 
         const Json::Value& jobject,
-        std::map< std::string, std::function< bool( const std::string&) > > filters
+        const format_map_t& format
     ) {
         std::map< std::string, std::string > _itemkv;
         auto _keys = __get_keys(name);
@@ -261,8 +261,9 @@ namespace dhboc { namespace redis {
             } else {
                 _itemkv[k.key] = k.dvalue;
             }
-            if ( filters.find(k.key) != filters.end() ) {
-                _itemkv[k.key] = filters[k.key](_itemkv[k.key]);
+            auto _fit = format.find(k.key);
+            if ( _fit != format.end() ) {
+                _itemkv[k.key] = _fit->second(_itemkv[k.key]);
             }
         }
         if ( jobject.isMember("id") ) {
@@ -311,7 +312,7 @@ namespace dhboc { namespace redis {
     Json::Value query_object(
         redis_connector_t rg,
         const std::string& name,
-        std::map< std::string, std::function< bool( const std::string&) > > filters
+        const filter_map_t& filters
     ) {
         Json::Value _result(Json::arrayValue);
         auto _keys = __get_keys(name);

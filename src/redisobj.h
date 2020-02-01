@@ -21,6 +21,8 @@ using namespace pe::co::net;
 namespace dhboc { namespace redis {
     // The redis connector group type
     typedef std::shared_ptr< net::redis::group >    redis_connector_t;
+    typedef std::map< std::string, std::function< std::string( const std::string&) > >      format_map_t;
+    typedef std::map< std::string, std::function< bool( const std::string&) > >             filter_map_t;
 
     enum rtype {
         R_STRING,
@@ -68,7 +70,7 @@ namespace dhboc { namespace redis {
         redis_connector_t rg,
         const std::string& name, 
         const Json::Value& jobject,
-        std::map< std::string, std::function< bool( const std::string&) > > filters
+        const format_map_t& format
     );
 
     int patch_object(
@@ -86,7 +88,7 @@ namespace dhboc { namespace redis {
     Json::Value query_object(
         redis_connector_t rg,
         const std::string& name,
-        std::map< std::string, std::function< bool( const std::string&) > > filters
+        const filter_map_t& filters
     );
 
     // Delete object
