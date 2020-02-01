@@ -98,10 +98,28 @@ void return_array( http_response& resp, const std::vector<T>& array ) {
     make_response( resp, _node );
 }
 
+template < typename p_t >
+Json::Value& __check_json_contains( Json::Value& j, bool& r, const p_t& k ) {
+    r &= ( j.isMember(k) );
+    return j;
+}
+template < typename p_t, typename... other_p_t >
+Json::Value& __check_json_contains( Json::Value& j, bool& r, const p_t& k, const other_p_t&... ok ) {
+    return __check_json_contains(__check_json_contains(j, r, k), r, ok...);
+}
+template < typename... p_t >
+bool check_json_contains( Json::Value& j, const p_t&... k ) {
+    bool _r;
+    __check_json_contains(j, _r, k...);
+    return _r;
+}
+
 // Use asctime to format the timestamp
 std::string dhboc_time_string( time_t t );
 // Use asctime to format the timestamp
 std::string dhboc_time_string( const std::string& ts );
+
+#include "redisobj.h"
 
 #endif
 
