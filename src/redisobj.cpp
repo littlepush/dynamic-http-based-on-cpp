@@ -160,6 +160,28 @@ namespace dhboc { namespace redis {
         return _result;
     }
 
+    Json::Value list_object(
+        redis_connector_t rg,
+        const std::string& name
+    ) {
+        auto _keys = __get_keys(name);
+        if ( _keys.size() == 0 ) {
+            Json::Value _empty(Json::nullValue);
+            return _empty;
+        }
+        Json::Value _rlist(Json::arrayValue);
+        auto _r = rg->query("LRANGE", "dhboc." + name + ".ids", 0, -1);
+        for ( auto& id : _r ) {
+            _rlist.append(__get_item(rg, id.content, _keys));
+        }
+        Json::Value _result(Json::objectValue);
+        _result["all"] = count_object(rg, name);
+        _result["offset"] = 0;
+        _result["limit"] = -1;
+        _result["data"] = _rlist;
+        return _result;
+    }
+
     // Get the list of value
     Json::Value list_object( 
         redis_connector_t rg, 
@@ -340,8 +362,14 @@ namespace dhboc { namespace redis {
         const std::string& name,
         const std::string& id
     ) {
+        auto _r = rg->query("HMGET", "dhboc.__item__." + id, "__type__");
+        if ( _r.size() == 0 || _r[0].is_nil() ) return 1;
+        if ( _r[0].content != name ) return 2;
+
         ignore_result(rg->query("LREM", "dhboc." + name + ".pin_ids", 1, id));
         ignore_result(rg->query("LREM", "dhboc." + name + ".ids", 1, id));
+        ignore_result(rg->query("DEL", "dhboc.__item__." + id));
+        
         return 0;
     }
 

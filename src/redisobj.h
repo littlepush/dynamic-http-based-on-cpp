@@ -47,6 +47,11 @@ namespace dhboc { namespace redis {
     int count_object( redis_connector_t rg, const std::string& name );
 
     // Get the list of value
+    Json::Value list_object(
+        redis_connector_t rg,
+        const std::string& name
+    );
+
     Json::Value list_object( 
         redis_connector_t rg, 
         const std::string& name, 
