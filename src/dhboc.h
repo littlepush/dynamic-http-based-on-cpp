@@ -109,7 +109,7 @@ Json::Value& __check_json_contains( Json::Value& j, bool& r, const p_t& k, const
 }
 template < typename... p_t >
 bool check_json_contains( Json::Value& j, const p_t&... k ) {
-    bool _r;
+    bool _r = true;
     __check_json_contains(j, _r, k...);
     return _r;
 }

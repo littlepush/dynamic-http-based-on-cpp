@@ -30,6 +30,8 @@ namespace dhboc { namespace redis {
         for ( const auto& k : filter_keys ) {
             _cmd << k.key;
         }
+        _cmd << "__ctime__" << "__utime__";
+
         auto _r = rg->query( std::move(_cmd) );
         Json::Value _result(Json::objectValue);
         for ( size_t i = 0; i < filter_keys.size(); ++i ) {
@@ -58,6 +60,10 @@ namespace dhboc { namespace redis {
                 _result[_k] = std::stof(_r[i].content);
             }
         }
+        size_t _ts = filter_keys.size();
+        _result["create_time"] = _r[_ts].content;
+        _result["update_time"] = _r[_ts + 1].content;
+
         return _result;
     }
 
@@ -275,25 +281,35 @@ namespace dhboc { namespace redis {
         const Json::Value& jobject,
         const format_map_t& format
     ) {
-        std::map< std::string, std::string > _itemkv;
         auto _keys = __get_keys(name);
-        for ( auto& k : _keys ) {
-            if ( jobject.isMember(k.key) ) {
-                _itemkv[k.key] = jobject[k.key].asString();
-            } else {
-                _itemkv[k.key] = k.dvalue;
-            }
-            auto _fit = format.find(k.key);
-            if ( _fit != format.end() ) {
-                _itemkv[k.key] = _fit->second(_itemkv[k.key]);
-            }
-        }
+        std::map< std::string, std::string > _itemkv;
+
         if ( jobject.isMember("id") ) {
             // this is an patch op
+            for ( auto& k : _keys ) {
+                if ( jobject.isMember(k.key) ) {
+                    _itemkv[k.key] = jobject[k.key].asString();
+                }
+                auto _fit = format.find(k.key);
+                if ( _fit != format.end() ) {
+                    _itemkv[k.key] = _fit->second(_itemkv[k.key]);
+                }
+            }
             _itemkv["id"] = jobject["id"].asString();
             __update_object(rg, name, _itemkv);
         } else {
             // this is an add op
+            for ( auto& k : _keys ) {
+                if ( jobject.isMember(k.key) ) {
+                    _itemkv[k.key] = jobject[k.key].asString();
+                } else {
+                    _itemkv[k.key] = k.dvalue;
+                }
+                auto _fit = format.find(k.key);
+                if ( _fit != format.end() ) {
+                    _itemkv[k.key] = _fit->second(_itemkv[k.key]);
+                }
+            }
             __add_object(rg, name, _itemkv);
         }
         return 0;
@@ -369,7 +385,7 @@ namespace dhboc { namespace redis {
         ignore_result(rg->query("LREM", "dhboc." + name + ".pin_ids", 1, id));
         ignore_result(rg->query("LREM", "dhboc." + name + ".ids", 1, id));
         ignore_result(rg->query("DEL", "dhboc.__item__." + id));
-        
+
         return 0;
     }
 
