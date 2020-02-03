@@ -240,10 +240,6 @@ namespace dhboc { namespace redis {
         const std::string& name,
         std::map< std::string, std::string >& kvs
     ) {
-        kvs["id"] = utils::md5(
-            std::to_string(getpid()) + 
-            std::to_string(task_time_now().time_since_epoch().count())
-        );
         kvs["__ctime__"] = std::to_string(time(NULL));
         kvs["__utime__"] = std::to_string(time(NULL));
         kvs["__type__"] = name;
@@ -285,31 +281,74 @@ namespace dhboc { namespace redis {
         std::map< std::string, std::string > _itemkv;
 
         if ( jobject.isMember("id") ) {
+            std::string _id = jobject["id"].asString();
+            Json::Value _old = get_object(rg, name, _id);
+            std::map< std::string, std::string > _new_uk;
+            std::vector< std::string > _old_uk;
             // this is an patch op
             for ( auto& k : _keys ) {
-                if ( jobject.isMember(k.key) ) {
-                    _itemkv[k.key] = jobject[k.key].asString();
-                }
+                if ( !jobject.isMember(k.key) ) continue;
+
+                std::string _v = jobject[k.key].asString();
                 auto _fit = format.find(k.key);
                 if ( _fit != format.end() ) {
-                    _itemkv[k.key] = _fit->second(_itemkv[k.key]);
+                    _v = _fit->second(_v);
                 }
+                std::string _ov = _old[k.key].asString();
+                if ( _ov == _v ) continue;  // do not need to update
+                if ( k.unique && k.key != "id" ) {
+                    std::string _uk = "dhboc.unique." + name + "." + k.key + "." + _v;
+                    auto _r = rg->query("GET", _uk);
+                    if ( !_r[0].is_nil() && _r[0].content != _id ) {
+                        // New value is not unique
+                        return 1;
+                    }
+                    _new_uk[_uk] = _id;
+                    _old_uk.push_back("dhboc.unique." + name + "." + k.key + "." + _ov);
+                }
+                _itemkv[k.key] = _v;
             }
-            _itemkv["id"] = jobject["id"].asString();
+            for ( auto& ki : _new_uk ) {
+                ignore_result(rg->query("SET", ki.first, ki.second));
+            }
+            for ( auto& k : _old_uk ) {
+                ignore_result(rg->query("DEL", k));
+            }
+            _itemkv["id"] = _id;
             __update_object(rg, name, _itemkv);
         } else {
             // this is an add op
+            std::string _id = utils::md5(
+                std::to_string(getpid()) + 
+                std::to_string(task_time_now().time_since_epoch().count())
+            );
+            std::map< std::string, std::string > _new_uk;
             for ( auto& k : _keys ) {
+                std::string _v = k.dvalue;
                 if ( jobject.isMember(k.key) ) {
-                    _itemkv[k.key] = jobject[k.key].asString();
-                } else {
-                    _itemkv[k.key] = k.dvalue;
+                    _v = jobject[k.key].asString();
                 }
                 auto _fit = format.find(k.key);
                 if ( _fit != format.end() ) {
-                    _itemkv[k.key] = _fit->second(_itemkv[k.key]);
+                    _v = _fit->second(_v);
                 }
+
+                if ( k.unique && k.key != "id" ) {
+                    std::string _uk = "dhboc.unique." + name + "." + k.key + "." + _v;
+                    auto _r = rg->query("GET", _uk);
+                    if ( !_r[0].is_nil() ) {
+                        // New value is not unique
+                        return 1;
+                    }
+                    _new_uk[_uk] = _id;
+                }
+                for ( auto& ki : _new_uk ) {
+                    ignore_result(rg->query("SET", ki.first, ki.second));
+                }
+
+                _itemkv[k.key] = _v;
             }
+            _itemkv["id"] = _id;
             __add_object(rg, name, _itemkv);
         }
         return 0;
