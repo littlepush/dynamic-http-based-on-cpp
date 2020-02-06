@@ -17,10 +17,11 @@ using namespace pe;
 using namespace pe::co;
 using namespace pe::co::net;
 
+#include "redismgr.h"
+
 // Utils
 namespace dhboc { namespace redis {
     // The redis connector group type
-    typedef std::shared_ptr< net::redis::group >    redis_connector_t;
     typedef std::map< std::string, std::function< std::string( const std::string&) > >      format_map_t;
     typedef std::map< std::string, std::function< bool( const std::string&) > >             filter_map_t;
 
@@ -45,11 +46,15 @@ namespace dhboc { namespace redis {
 
     // Get the count of specifial object
     int count_object( redis_connector_t rg, const std::string& name );
+    int count_object( const std::string& name );
 
     // Get the list of value
     Json::Value list_object(
         redis_connector_t rg,
         const std::string& name
+    );
+    Json::Value list_object( 
+        const std::string& name 
     );
 
     Json::Value list_object( 
@@ -58,12 +63,21 @@ namespace dhboc { namespace redis {
         int offset, 
         int page_size
     );
+    Json::Value list_object( 
+        const std::string& name, 
+        int offset, 
+        int page_size 
+    );
 
     Json::Value list_object( 
         redis_connector_t rg, 
         const std::string& name, 
         int offset, 
         int page_size, 
+        const std::vector< std::string >& filter_keys 
+    );
+    Json::Value list_object( 
+        const std::string& name, int offset, int page_size,
         const std::vector< std::string >& filter_keys 
     );
 
@@ -77,11 +91,30 @@ namespace dhboc { namespace redis {
         const Json::Value& jobject,
         const format_map_t& format
     );
+    int patch_object(
+        const std::string& name, 
+        const Json::Value& jobject,
+        const format_map_t& format
+    );
 
     int patch_object(
         redis_connector_t rg,
         const std::string& name,
         const Json::Value& jobject
+    );
+    int patch_object(
+        const std::string& name,
+        const Json::Value& jobject
+    );
+
+    int patch_object(
+        redis_connector_t rg,
+        const std::string& name,
+        const std::map< std::string, std::string > kv
+    );
+    int patch_object(
+        const std::string& name,
+        const std::map< std::string, std::string > kv
     );
 
     Json::Value get_object(
@@ -89,9 +122,29 @@ namespace dhboc { namespace redis {
         const std::string& name,
         const std::string& id
     );
+    Json::Value get_object(
+        const std::string& name,
+        const std::string& id
+    );
+
+    Json::Value get_object(
+        redis_connector_t rg,
+        const std::string& name,
+        const std::string& unique_key,
+        const std::string& value
+    );
+    Json::Value get_object(
+        const std::string& name,
+        const std::string& unique_key,
+        const std::string& value
+    );
 
     Json::Value query_object(
         redis_connector_t rg,
+        const std::string& name,
+        const filter_map_t& filters
+    );
+    Json::Value query_object(
         const std::string& name,
         const filter_map_t& filters
     );
@@ -102,6 +155,10 @@ namespace dhboc { namespace redis {
         const std::string& name,
         const std::string& id
     );
+    int delete_object(
+        const std::string& name,
+        const std::string& id
+    );
 
     // Pin an object at the top of the list
     int pin_object(
@@ -109,9 +166,17 @@ namespace dhboc { namespace redis {
         const std::string& name,
         const std::string& id
     );
+    int pin_object(
+        const std::string& name,
+        const std::string& id
+    );
 
     int unpin_object(
         redis_connector_t rg,
+        const std::string& name,
+        const std::string& id
+    );
+    int unpin_object(
         const std::string& name,
         const std::string& id
     );
@@ -122,6 +187,11 @@ namespace dhboc { namespace redis {
         const std::string& name,
         int limit
     );
+    int set_pin_limit(
+        const std::string& name,
+        int limit
+    );
+
 }};
 
 #endif

@@ -119,6 +119,7 @@ std::string dhboc_time_string( time_t t );
 // Use asctime to format the timestamp
 std::string dhboc_time_string( const std::string& ts );
 
+#include "redismgr.h"
 #include "redisobj.h"
 
 #endif

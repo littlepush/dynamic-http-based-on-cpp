@@ -11,6 +11,7 @@ libdhboc_la_SOURCES = \
 	src/startup.cpp \
 	src/handler.cpp \
 	src/dhboc.cpp \
+	src/redismgr.cpp \
 	src/redisobj.cpp
 
 pkginclude_HEADERS = \
@@ -18,6 +19,7 @@ pkginclude_HEADERS = \
 	src/modules.h \
 	src/startup.h \
 	src/handler.h \
+	src/redismgr.h \
 	src/redisobj.h
 
 bin_PROGRAMS = dhboc
