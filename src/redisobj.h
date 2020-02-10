@@ -44,6 +44,14 @@ namespace dhboc { namespace redis {
         const std::vector< properity_t >& properties
     );
 
+    // Unregister an object type
+    int unregister_object(
+        const std::string& name
+    );
+
+    // Get all objects' name
+    std::list< std::string > all_objects();
+
     // Get the count of specifial object
     int count_object( redis_connector_t rg, const std::string& name );
     int count_object( const std::string& name );
@@ -55,6 +63,15 @@ namespace dhboc { namespace redis {
     );
     Json::Value list_object( 
         const std::string& name 
+    );
+
+    // List only ids
+    std::list< std::string > list_object_ids(
+        redis_connector_t rg,
+        const std::string& name
+    );
+    std::list< std::string > list_object_ids(
+        const std::string& name
     );
 
     Json::Value list_object( 

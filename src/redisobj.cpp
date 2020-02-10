@@ -42,7 +42,7 @@ namespace dhboc { namespace redis {
                 _result[_k] = Json::Value(Json::nullValue);
                 continue;
             }
-            if ( _r[i].is_nil() || _r[i].is_empty() ) {
+            if ( _r[i].is_nil() || _r[i].is_empty() || _r[i].content.size() == 0 ) {
                 if ( _t == R_STRING ) {
                     _result[_k] = filter_keys[i].dvalue;
                     continue;
@@ -189,6 +189,24 @@ namespace dhboc { namespace redis {
         g_object_infos[name] = _key_map;
         return 0;
     }
+    // Unregister an object type
+    int unregister_object(
+        const std::string& name
+    ) {
+        auto _it = g_object_infos.find(name);
+        if ( _it == g_object_infos.end() ) return 1;
+        g_object_infos.erase(_it);
+        return 0;
+    }
+
+    // Get all objects' name
+    std::list< std::string > all_objects() {
+        std::list< std::string > _names;
+        for ( auto& kv : g_object_infos ) {
+            _names.push_back(kv.first);
+        }
+        return _names;
+    }
 
     // Get the count of specifial object
     int count_object( redis_connector_t rg, const std::string& name ) {
@@ -227,6 +245,24 @@ namespace dhboc { namespace redis {
     ) {
         return list_object( manager::shared_group(), name );
     }
+    // List only ids
+    std::list< std::string > list_object_ids(
+        redis_connector_t rg,
+        const std::string& name
+    ) {
+        std::list< std::string > _ids;
+        auto _r = rg->query("LRANGE", "dhboc." + name + ".ids", 0, -1);
+        for ( auto& id : _r ) {
+            _ids.push_back(id.content);
+        }
+        return _ids;
+    }
+    std::list< std::string > list_object_ids(
+        const std::string& name
+    ) {
+        return list_object_ids( manager::shared_group(), name );
+    }
+
     // Get the list of value
     Json::Value list_object( 
         redis_connector_t rg, 
