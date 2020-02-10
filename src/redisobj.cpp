@@ -522,12 +522,29 @@ namespace dhboc { namespace redis {
         const std::string& name,
         const std::string& id
     ) {
-        auto _r = rg->query("HMGET", "dhboc.__item__." + id, "__type__");
-        if ( _r.size() == 0 || _r[0].is_nil() ) return 1;
-        if ( _r[0].content != name ) return 2;
+        auto _keys = __get_keys(name);
+        _keys.emplace_back((properity_t){
+            "__type__", R_STRING, true, std::string("")
+        });
+        auto _o = __get_item(rg, id, _keys);
+        // No such id
+        if ( _o.isNull() ) return 1;
+        // Invalidate type
+        if ( _o["__type__"].asString() != name ) return 1;
 
+        // Remove all unique index key
+        for ( auto& k : _keys ) {
+            if ( !k.unique ) continue;
+            ignore_result(rg->query(
+                "DEL", "dhboc.unique." + name + "." + 
+                k.key + "." + _o[k.key].asString()));
+        }
+
+        // Remove item from all list
         ignore_result(rg->query("LREM", "dhboc." + name + ".pin_ids", 1, id));
         ignore_result(rg->query("LREM", "dhboc." + name + ".ids", 1, id));
+
+        // Remove the object
         ignore_result(rg->query("DEL", "dhboc.__item__." + id));
 
         return 0;
