@@ -20,13 +20,17 @@ using namespace pe::co::net;
 namespace dhboc { namespace redis {
 
     typedef std::shared_ptr< net::redis::group >            redis_connector_t;
-    typedef std::function< bool ( const std::string ) >     notification_t;
+    typedef std::function< bool ( const std::string& ) >    notification_t;
+    typedef std::function< void ( const std::string& ) >    expire_t;
     using pe::co::net::proto::redis::result_t;
 
     // Redis Manager
     class manager {
         redis_connector_t                           rgroup_;
         std::map< std::string, task * >             notification_map_;
+        bool                                        enabled_expire_;
+        task *                                      expire_sub_;
+        std::map< std::string, expire_t >           expire_map_;
     protected: 
         // Singleton
         static manager& ins();
@@ -47,6 +51,9 @@ namespace dhboc { namespace redis {
 
         // Send notification key
         static void send_notification( const std::string& key, const std::string& value );
+
+        // Wait for key expire
+        static void wait_expire(const std::string& key, expire_t cb);
 
         template < typename... cmd_t >
         static inline result_t query( const cmd_t&... c ) {

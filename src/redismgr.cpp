@@ -18,7 +18,7 @@ namespace dhboc { namespace redis {
     }
 
     // C'str
-    manager::manager() : rgroup_(nullptr) { }
+    manager::manager() : rgroup_(nullptr), enabled_expire_(false), expire_sub_(NULL) { }
     bool manager::connect_to_redis_server( const std::string& rinfo, size_t count ) {
         ins().rgroup_ = std::make_shared< net::redis::group >( rinfo, count );
         return ins().rgroup_->lowest_load_connector().is_validate();
@@ -50,6 +50,24 @@ namespace dhboc { namespace redis {
         if ( _it == ins().notification_map_.end() ) return;
         ins().rgroup_->unsubscribe(_it->second);
         ins().notification_map_.erase(_it);
+    }
+
+    // Wait for key expire
+    void manager::wait_expire(const std::string& key, expire_t cb) {
+        ins().expire_map_[key] = cb;
+        if ( ins().enabled_expire_ ) return;
+        ins().enabled_expire_ = true;
+        if ( ins().expire_sub_ != NULL ) return;
+        manager::query("config", "set", "notify-keyspace-events", "Ex");
+        ins().expire_sub_ = ins().rgroup_->subscribe(
+            [](const std::string& key, const std::string& value) {
+                auto _eit = ins().expire_map_.find(key);
+                if ( _eit == ins().expire_map_.end() ) return;
+                auto _cb = _eit->second;
+                ins().expire_map_.erase(_eit);
+                _cb(value);
+            }, "PSUBSCRIBE", "__key*__:*"
+        );
     }
 
     // Send notification key
