@@ -366,19 +366,19 @@ namespace dhboc { namespace redis {
         _result.append(_fp);
         if ( _ids.size() <= (size_t)page_size ) return _result;
         for ( ; _offset < _ids.size(); ++_offset ) {
-            if ( _count == 0 ) {
-                // New page
-                Json::Value _rp(Json::objectValue);
-                _rp["offset"] = (int)_offset;
-                _rp["page_size"] = (int)page_size;
-                _result.append(_rp);
-            }
             auto _it = std::find(_pin_ids.begin(), _pin_ids.end(), _ids[_offset]);
             if ( _it != _pin_ids.end() ) {
                 continue;
             }
             ++_count;
             if ( _count == page_size ) _count = 0;
+            if ( _count == 0 && _offset < (_ids.size() - 1) ) {
+                // New page
+                Json::Value _rp(Json::objectValue);
+                _rp["offset"] = (int)_offset + 1;
+                _rp["page_size"] = (int)page_size;
+                _result.append(_rp);
+            }
         }
         return _result;
     }
