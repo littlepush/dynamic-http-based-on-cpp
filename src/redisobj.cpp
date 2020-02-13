@@ -8,62 +8,104 @@
 */
 
 #include "redisobj.h"
+#include <unordered_map>
 
 // Utils
 namespace dhboc { namespace redis {
-    // struct properity_t {
-    //     std::string             key;
-    //     rtype                   type;
-    //     bool                    unique;
-    //     std::string             dvalue;
-    // };
+    std::map< std::string, std::map< std::string, properity_t > >   g_object_infos;
+    utils::lrucache< std::string, Json::Value >                     g_object_cache;
+    const filter_map_t                                              empty_filter_map = {};
+    const std::vector< std::string >                                empty_filter_keys = {};
+    std::vector< properity_t >                                      empty_fetch_keys = {};
 
-    std::map< std::string, std::map< std::string, properity_t > > g_object_infos;
+    #define CACHE_NOTIFICATION_KEY                                  "__inner_object_patch__"
+
+    void enable_item_cache( size_t cache_size ) {
+        g_object_cache.set_cache_size( cache_size );
+        manager::register_notification(CACHE_NOTIFICATION_KEY, [](const std::string& value) {
+            g_object_cache.erase(value);
+            return true;
+        });
+    }
 
     Json::Value __get_item(
         redis_connector_t rg,
+        const std::string& name,
         const std::string& id,
-        const std::vector< properity_t >& filter_keys
+        const std::vector< properity_t >& filter_keys = empty_fetch_keys
     ) {
-        net::proto::redis::command _cmd;
-        _cmd << "HMGET" << "dhboc.__item__." + id;
-        for ( const auto& k : filter_keys ) {
-            _cmd << k.key;
-        }
-        _cmd << "__ctime__" << "__utime__";
+        Json::Value& _item = g_object_cache.get(id, [&](const std::string& key) {
+            // Get full object
+            net::proto::redis::command _cmd;
+            auto _oit = g_object_infos.find(name);
+            if ( _oit == g_object_infos.end() ) return Json::Value(Json::nullValue);
 
-        auto _r = rg->query( std::move(_cmd) );
-        Json::Value _result(Json::objectValue);
-        for ( size_t i = 0; i < filter_keys.size(); ++i ) {
-            rtype _t = filter_keys[i].type;
-            std::string _k = filter_keys[i].key;
-            if ( _t == R_NULL ) {
-                if ( _k == "__dummy__" ) continue;
-                _result[_k] = Json::Value(Json::nullValue);
-                continue;
+            _cmd << "HMGET" << "dhboc.__item__." + key;
+            std::vector< properity_t > _prop_keys;
+            for ( auto& _pkv : _oit->second ) {
+                _cmd << _pkv.first;
+                _prop_keys.push_back( _pkv.second );
             }
-            if ( _r[i].is_nil() || _r[i].is_empty() || _r[i].content.size() == 0 ) {
+            _cmd << "id" << "__ctime__" << "__utime__" << "__type__";
+            auto _r = rg->query( std::move(_cmd) );
+            // Type not match or not existed
+            if ( _r.rbegin()->content != name ) {
+                return Json::Value(Json::nullValue);
+            }
+            Json::Value _result(Json::objectValue);
+            
+            for ( size_t i = 0; i < _prop_keys.size(); ++i ) {
+                rtype _t = _prop_keys[i].type;
+                std::string _k = _prop_keys[i].key;
+                if ( _t == R_NULL ) {
+                    if ( _k == "__dummy__" ) continue;
+                    _result[_k] = Json::Value(Json::nullValue);
+                    continue;
+                }
+                if ( _r[i].is_nil() || _r[i].is_empty() || _r[i].content.size() == 0 ) {
+                    if ( _t == R_STRING ) {
+                        _result[_k] = _prop_keys[i].dvalue;
+                        continue;
+                    }
+                    if ( _t == R_NUMBER && _prop_keys[i].dvalue.size() > 0 ) {
+                        _result[_k] = std::stof(_prop_keys[i].dvalue);
+                        continue;
+                    }
+                    _result[_k] = Json::Value(Json::nullValue);
+                    continue;
+                }
                 if ( _t == R_STRING ) {
-                    _result[_k] = filter_keys[i].dvalue;
-                    continue;
+                    _result[_k] = _r[i].content;
+                } else if ( _t == R_NUMBER ) {
+                    _result[_k] = std::stof(_r[i].content);
                 }
-                if ( _t == R_NUMBER && filter_keys[i].dvalue.size() > 0 ) {
-                    _result[_k] = std::stof(filter_keys[i].dvalue);
-                    continue;
-                }
-                _result[_k] = Json::Value(Json::nullValue);
-                continue;
             }
-            if ( _t == R_STRING ) {
-                _result[_k] = _r[i].content;
-            } else if ( _t == R_NUMBER ) {
-                _result[_k] = std::stof(_r[i].content);
-            }
-        }
-        size_t _ts = filter_keys.size();
-        _result["create_time"] = _r[_ts].content;
-        _result["update_time"] = _r[_ts + 1].content;
+            size_t _ts = _prop_keys.size();
+            _result["id"] = _r[_ts].content;
+            _result["create_time"] = _r[_ts + 1].content;
+            _result["update_time"] = _r[_ts + 2].content;
+            _result["__type__"] = _r[_ts + 3].content;
 
+            return _result;
+        });
+
+        // Invalidate item
+        if ( _item.isNull() ) {
+            g_object_cache.erase(id);
+            return Json::Value(Json::nullValue);
+        }
+
+        // If not need to filter, return the item itself(copyed)
+        if ( filter_keys.size() == 0 ) return _item;
+
+        // Copy the value
+        Json::Value _result(Json::objectValue);
+        for ( auto& p : filter_keys ) {
+            _result[p.key] = _item[p.key];
+        }
+        _result["id"] = _item["id"];
+        _result["create_time"] = _item["create_time"];
+        _result["update_time"] = _item["update_time"];
         return _result;
     }
 
@@ -96,10 +138,6 @@ namespace dhboc { namespace redis {
         if ( _oit == g_object_infos.end() ) {
             return _keys;
         }
-        // Add Id key
-        _keys.emplace_back((properity_t){
-            "id", R_STRING, true, std::string("")
-        });
         for ( auto& p : _oit->second ) {
             _keys.push_back(p.second);
         }
@@ -124,40 +162,52 @@ namespace dhboc { namespace redis {
         const std::string& name,
         int offset,
         int page_size,
-        const std::vector< properity_t >& keys
+        const std::vector< properity_t >& keys,
+        const filter_map_t& filters
     ) {
-        int _pin_count = __pin_count(rg, name);
-        Json::Value _r_list(Json::arrayValue);
-        std::map< std::string, bool > _pin_cache;
-        if ( _pin_count > 0 ) {
-            auto _pr = rg->query("LRANGE", "dhboc." + name + ".pin_ids", 0, -1);
-            for ( auto& id: _pr ) {
-                _pin_cache[id.content] = true;
-                auto _item = __get_item(rg, id.content, keys);
-                _item["is_pin"] = true;
-                _r_list.append(_item);
-            }
+        auto _pin_ids = __list_ids(rg, name, true);
+        auto _ids = __list_ids(rg, name, false);
+
+        if ( page_size == -1 ) {
+            page_size = (int)_ids.size() - offset;
         }
 
-        auto _r = rg->query("LRANGE", "dhboc." + name + ".ids", 
-            offset, (offset + page_size + _pin_count) - 1);
-        int _lsize = _pin_count;
-        int _used = 0;
-        for ( auto& id : _r ) {
-            ++_used;
-            if ( _pin_cache.find(id.content) != _pin_cache.end() ) continue;
-            auto _item = __get_item(rg, id.content, keys);
-            _item["is_pin"] = false;
-            _r_list.append(_item);
-            ++_lsize;
-            if ( _lsize == page_size ) break;
+        auto _filterp = [&]( const std::string& id ) -> bool {
+            auto _item = __get_item(rg, name, id);
+            if ( _item.isNull() ) return false;
+            for ( auto& fkv : filters ) {
+                if ( !_item.isMember(fkv.first) ) return false;
+                if ( !fkv.second(_item[fkv.first].asString()) ) return false;
+            }
+            return true;
+        };
+
+        std::vector< std::string > _all_ids;
+        for ( auto& _id : _pin_ids ) {
+            if ( !_filterp(_id) ) continue;
+            _all_ids.push_back(_id);
+        }
+
+        for ( auto& _id : _ids ) {
+            auto _pit = std::find(_pin_ids.begin(), _pin_ids.end(), _id);
+            if ( _pit != _pin_ids.end() ) continue;
+            if ( !_filterp(_id) ) continue;
+            _all_ids.push_back(_id);
+        }
+
+        Json::Value _rlist(Json::arrayValue);
+        for ( size_t i = (size_t)offset; i < (size_t)(offset + page_size) && i < _all_ids.size(); ++i ) {
+            Json::Value _item = __get_item(rg, name, _all_ids[i], keys);
+            auto _pit = std::find(_pin_ids.begin(), _pin_ids.end(), _all_ids[i]);
+            _item["is_pin"] = (_pit != _pin_ids.end());
+            _rlist.append(_item);
         }
 
         Json::Value _result(Json::objectValue);
-        _result["all"] = count_object(rg, name);
-        _result["offset"] = offset + _used;
+        _result["all"] = (int)_all_ids.size();
+        _result["offset"] = offset;
         _result["limit"] = page_size;
-        _result["data"] = _r_list;
+        _result["data"] = _rlist;
         return _result;
     }
 
@@ -191,6 +241,7 @@ namespace dhboc { namespace redis {
             _cmd << kv.first << kv.second;
         }
         ignore_result(rg->query(std::move(_cmd)));
+        manager::send_notification(CACHE_NOTIFICATION_KEY, kvs["id"]);
     }
 
     // Register an object in the memory
@@ -227,7 +278,7 @@ namespace dhboc { namespace redis {
 
     // Get the count of specifial object
     int count_object( redis_connector_t rg, const std::string& name ) {
-        auto _r = rg->query("LLEN", "dhboc." + name + ".pin_ids");
+        auto _r = rg->query("LLEN", "dhboc." + name + ".ids");
         if ( _r.size() == 0 ) return 0;
         if ( _r[0].is_nil() || _r[0].is_empty() ) return 0;
         return std::stoi(_r[0].content);
@@ -236,50 +287,72 @@ namespace dhboc { namespace redis {
         return count_object( manager::shared_group(), name );
     }
 
+    // Get the list of value
     Json::Value list_object(
         redis_connector_t rg,
-        const std::string& name
+        const std::string& name,
+        int offset,
+        int page_size,
+        const std::vector< std::string >& filter_keys,
+        const filter_map_t& filters
     ) {
-        auto _keys = __get_keys(name);
-        if ( _keys.size() == 0 ) {
-            Json::Value _empty(Json::nullValue);
-            return _empty;
+        auto _oit = g_object_infos.find(name);
+        if ( _oit == g_object_infos.end() ) {
+            Json::Value _result(Json::objectValue);
+            _result["all"] = 0;
+            _result["offset"] = offset;
+            _result["limit"] = page_size;
+            _result["data"] = Json::Value(Json::arrayValue);
+            return _result;
         }
-        Json::Value _rlist(Json::arrayValue);
-        auto _r = rg->query("LRANGE", "dhboc." + name + ".ids", 0, -1);
-        for ( auto& id : _r ) {
-            auto _item = __get_item(rg, id.content, _keys);
-            _item["is_pin"] = false;
-            _rlist.append(_item);
+        std::vector< properity_t > _keys;
+        for ( const auto& k : filter_keys ) {
+            auto _kit = _oit->second.find(k);
+            if ( _kit == _oit->second.end() ) continue;
+            _keys.push_back(_kit->second);
         }
-        Json::Value _result(Json::objectValue);
-        _result["all"] = count_object(rg, name);
-        _result["offset"] = 0;
-        _result["limit"] = -1;
-        _result["data"] = _rlist;
-        return _result;
+        return __list_object(rg, name, offset, page_size, _keys, filters);
     }
     Json::Value list_object(
-        const std::string& name
+        const std::string& name,
+        int offset,
+        int page_size,
+        const std::vector< std::string >& filter_keys,
+        const filter_map_t& filters
     ) {
-        return list_object( manager::shared_group(), name );
+        return list_object(manager::shared_group(), name, offset, page_size, filter_keys, filters);
     }
+
     // List only ids
-    std::list< std::string > list_object_ids(
-        redis_connector_t rg,
-        const std::string& name
+    std::vector< std::string > list_object_ids( 
+        redis_connector_t rg, const std::string& name,
+        const filter_map_t& filters
     ) {
-        std::list< std::string > _ids;
-        auto _r = rg->query("LRANGE", "dhboc." + name + ".ids", 0, -1);
-        for ( auto& id : _r ) {
-            _ids.push_back(id.content);
+        if ( filters.size() == 0 ) return __list_ids(rg, name, false);
+        std::vector< std::string > _result_ids;
+        auto _ids = __list_ids(rg, name, false);
+        for ( auto& _id : _ids ) {
+            bool _match = true;
+            auto _item = __get_item(rg, name, _id);
+            if ( _item.isNull() ) continue;
+            for ( auto& fkv : filters ) {
+                if ( !_item.isMember(fkv.first) ) {
+                    _match = false; break;
+                }
+                if ( !fkv.second(_item[fkv.first].asString()) ) {
+                    _match = false; break;
+                }
+            }
+            if ( !_match ) continue;
+            _result_ids.push_back(_id);
         }
-        return _ids;
+        return _result_ids;
     }
-    std::list< std::string > list_object_ids(
-        const std::string& name
+    std::vector< std::string > list_object_ids( 
+        const std::string& name,
+        const filter_map_t& filters
     ) {
-        return list_object_ids( manager::shared_group(), name );
+        return list_object_ids( manager::shared_group(), name, filters );
     }
 
     // Get the list of value
@@ -287,106 +360,18 @@ namespace dhboc { namespace redis {
         redis_connector_t rg, 
         const std::string& name, 
         int offset, 
-        int page_size
+        int page_size,
+        const filter_map_t& filters
     ) {
-        auto _keys = __get_keys(name);
-        if ( _keys.size() == 0 ) {
-            Json::Value _empty(Json::nullValue);
-            return _empty;
-        }
-        return __list_object(rg, name, offset, page_size, _keys);
+        return __list_object(rg, name, offset, page_size, empty_fetch_keys, filters);
     }
     Json::Value list_object( 
         const std::string& name, 
         int offset, 
-        int page_size
+        int page_size,
+        const filter_map_t& filters
     ) {
-        return list_object( manager::shared_group(), name, offset, page_size );
-    }
-
-    Json::Value list_object( 
-        redis_connector_t rg, 
-        const std::string& name, 
-        int offset, 
-        int page_size, 
-        const std::vector< std::string >& filter_keys 
-    ) {
-        auto _oit = g_object_infos.find(name);
-        if ( _oit == g_object_infos.end() ) {
-            Json::Value _empty(Json::nullValue);
-            return _empty;            
-        }
-
-        std::vector< properity_t > _keys;
-        // Add Id key
-        _keys.emplace_back((properity_t){
-            "id", R_STRING, true, std::string("")
-        });
-        for ( const auto& k : filter_keys ) {
-            auto _pit = _oit->second.find(k);
-            if ( _pit == _oit->second.end() ) {
-                // Must be NULL
-                _keys.emplace_back((properity_t){
-                    std::string("__dummy__"), R_NULL, false, std::string("")
-                });
-            } else {
-                _keys.push_back(_pit->second);
-            }
-        }
-        return __list_object(rg, name, offset, page_size, _keys);
-    }
-    Json::Value list_object( 
-        const std::string& name, 
-        int offset, 
-        int page_size, 
-        const std::vector< std::string >& filter_keys 
-    ) {
-        return list_object( manager::shared_group(), 
-            name, offset, page_size, filter_keys);
-    }
-    // Get the page info of an object type
-    Json::Value page_object(
-        redis_connector_t rg,
-        const std::string& name,
-        int page_size
-    ) {
-        auto _oit = g_object_infos.find(name);
-        if ( _oit == g_object_infos.end() ) {
-            Json::Value _empty(Json::nullValue);
-            return _empty;            
-        }
-        std::vector< std::string > _pin_ids(__list_ids(rg, name, true));
-        std::vector< std::string > _ids(__list_ids(rg, name, false));
-
-        size_t _offset = 0, _count = _pin_ids.size();
-        Json::Value _result(Json::arrayValue);
-        Json::Value _fp(Json::objectValue);
-        _fp["offset"] = 0;
-        _fp["page_size"] = page_size;
-        _result.append(_fp);
-        if ( _ids.size() <= (size_t)page_size ) return _result;
-        for ( ; _offset < _ids.size(); ++_offset ) {
-            auto _it = std::find(_pin_ids.begin(), _pin_ids.end(), _ids[_offset]);
-            if ( _it != _pin_ids.end() ) {
-                continue;
-            }
-            ++_count;
-            if ( _count == page_size ) _count = 0;
-            if ( _count == 0 && _offset < (_ids.size() - 1) ) {
-                // New page
-                Json::Value _rp(Json::objectValue);
-                _rp["offset"] = (int)_offset + 1;
-                _rp["page_size"] = (int)page_size;
-                _result.append(_rp);
-            }
-        }
-        return _result;
-    }
-    Json::Value page_object(
-        const std::string& name,
-        int page_size
-    ) {
-        return page_object( manager::shared_group(), name, page_size );
+        return list_object( manager::shared_group(), name, offset, page_size, filters );
     }
 
     // Recurse add a json object
@@ -521,23 +506,7 @@ namespace dhboc { namespace redis {
         const std::string& name,
         const std::string& id
     ) {
-        Json::Value _empty(Json::nullValue);
-        auto _keys = __get_keys(name);
-        if ( _keys.size() == 0 ) {
-            return _empty;
-        }
-        _keys.emplace_back((properity_t){
-            "__type__", R_STRING, true, std::string("")
-        });
-        Json::Value _obj = __get_item(rg, id, _keys);
-        if ( !_obj.isMember("__type__") ) {
-            return _empty;            
-        }
-        if ( _obj["__type__"].asString() != name ) {
-            return _empty;
-        }
-        _obj.removeMember("__type__");
-        return _obj;
+        return __get_item(rg, name, id);
     }
     Json::Value get_object(
         const std::string& name,
@@ -573,8 +542,7 @@ namespace dhboc { namespace redis {
         if ( _iid.size() == 0 || _iid[0].is_nil() ) {
             return Json::Value(Json::nullValue);
         }
-        auto _keys = __get_keys(name);
-        return __get_item(rg, _iid[0].content, _keys);
+        return __get_item(rg, name, _iid[0].content);
     }
     Json::Value get_object(
         const std::string& name,
@@ -584,52 +552,19 @@ namespace dhboc { namespace redis {
         return get_object( manager::shared_group(), name, unique_key, value );
     }
 
-    Json::Value query_object(
-        redis_connector_t rg,
-        const std::string& name,
-        const filter_map_t& filters
-    ) {
-        Json::Value _result(Json::arrayValue);
-        auto _keys = __get_keys(name);
-        auto _rids = rg->query("LRANGE", "dhboc." + name + ".ids", 0, -1);
-        for ( auto& id : _rids ) {
-            Json::Value _item = __get_item(rg, id.content, _keys);
-            bool _all_match = true;
-            for ( auto& fkv : filters ) {
-                if ( !_item.isMember(fkv.first) ) {
-                    _all_match = false; break;
-                }
-                _all_match = fkv.second(_item[fkv.first].asString());
-                if ( !_all_match ) break;
-            }
-            if ( _all_match ) {
-                _result.append(_item);
-            }
-        }
-        return _result;
-    }
-    Json::Value query_object(
-        const std::string& name,
-        const filter_map_t& filters
-    ) {
-        return query_object( manager::shared_group(), name, filters );
-    }
-
     // Delete object
     int delete_object(
         redis_connector_t rg,
         const std::string& name,
         const std::string& id
     ) {
+        // No Such type
         auto _keys = __get_keys(name);
-        _keys.emplace_back((properity_t){
-            "__type__", R_STRING, true, std::string("")
-        });
-        auto _o = __get_item(rg, id, _keys);
+        if ( _keys.size() == 0 ) return 1;
+
+        auto _o = __get_item(rg, name, id);
         // No such id
         if ( _o.isNull() ) return 1;
-        // Invalidate type
-        if ( _o["__type__"].asString() != name ) return 1;
 
         // Remove all unique index key
         for ( auto& k : _keys ) {
@@ -646,6 +581,9 @@ namespace dhboc { namespace redis {
         // Remove the object
         ignore_result(rg->query("DEL", "dhboc.__item__." + id));
 
+        // Remove from the cache
+        manager::send_notification(CACHE_NOTIFICATION_KEY, id);
+
         return 0;
     }
     int delete_object(
@@ -661,14 +599,8 @@ namespace dhboc { namespace redis {
         const std::string& name,
         const std::string& id
     ) {
-        auto _r = rg->query("HMGET", "dhboc.__item__." + id, "__type__");
-        if ( _r.size() == 0 || _r[0].is_nil() || _r[0].is_empty() ) {
-            // Not the same type as name
-            return 1;
-        }
-        if ( name != _r[0].content ) {
-            return 1;
-        }
+        auto _item = __get_item(rg, name, id);
+        if ( _item.isNull() ) return 1;
 
         ignore_result(rg->query("LREM", "dhboc." + name + ".pin_ids", 0, id));
         ignore_result(rg->query("LPUSH", "dhboc." + name + ".pin_ids", id));

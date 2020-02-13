@@ -25,6 +25,9 @@ namespace dhboc { namespace redis {
     typedef std::map< std::string, std::function< std::string( const std::string&) > >      format_map_t;
     typedef std::map< std::string, std::function< bool( const std::string&) > >             filter_map_t;
 
+    extern const filter_map_t                   empty_filter_map;
+    extern const std::vector< std::string >     empty_filter_keys;
+
     enum rtype {
         R_STRING,
         R_NUMBER,
@@ -37,6 +40,9 @@ namespace dhboc { namespace redis {
         bool                    unique;
         std::string             dvalue;
     };
+
+    // Enable Item Cache
+    void enable_item_cache( size_t cache_size = 10000 );
 
     // Register an object in the memory
     int register_object( 
@@ -59,54 +65,42 @@ namespace dhboc { namespace redis {
     // Get the list of value
     Json::Value list_object(
         redis_connector_t rg,
-        const std::string& name
+        const std::string& name,
+        int offset = 0,
+        int page_size = -1,
+        const std::vector< std::string >& filter_keys = empty_filter_keys,
+        const filter_map_t& filters = empty_filter_map
     );
-    Json::Value list_object( 
-        const std::string& name 
+    Json::Value list_object(
+        const std::string& name,
+        int offset = 0,
+        int page_size = -1,
+        const std::vector< std::string >& filter_keys = empty_filter_keys,
+        const filter_map_t& filters = empty_filter_map
     );
 
     // List only ids
-    std::list< std::string > list_object_ids(
-        redis_connector_t rg,
-        const std::string& name
+    std::vector< std::string > list_object_ids( 
+        redis_connector_t rg, const std::string& name,
+        const filter_map_t& filters = empty_filter_map
     );
-    std::list< std::string > list_object_ids(
-        const std::string& name
+    std::vector< std::string > list_object_ids( 
+        const std::string& name,
+        const filter_map_t& filters = empty_filter_map
     );
 
     Json::Value list_object( 
         redis_connector_t rg, 
         const std::string& name, 
         int offset, 
-        int page_size
+        int page_size,
+        const filter_map_t& filters = empty_filter_map
     );
     Json::Value list_object( 
         const std::string& name, 
         int offset, 
-        int page_size 
-    );
-
-    Json::Value list_object( 
-        redis_connector_t rg, 
-        const std::string& name, 
-        int offset, 
-        int page_size, 
-        const std::vector< std::string >& filter_keys 
-    );
-    Json::Value list_object( 
-        const std::string& name, int offset, int page_size,
-        const std::vector< std::string >& filter_keys 
-    );
-
-    // Get the page info of an object type
-    Json::Value page_object(
-        redis_connector_t rg,
-        const std::string& name,
-        int page_size
-    );
-    Json::Value page_object(
-        const std::string& name,
-        int page_size
+        int page_size,
+        const filter_map_t& filters = empty_filter_map
     );
 
     // Recurse add a json object
@@ -165,16 +159,6 @@ namespace dhboc { namespace redis {
         const std::string& name,
         const std::string& unique_key,
         const std::string& value
-    );
-
-    Json::Value query_object(
-        redis_connector_t rg,
-        const std::string& name,
-        const filter_map_t& filters
-    );
-    Json::Value query_object(
-        const std::string& name,
-        const filter_map_t& filters
     );
 
     // Delete object
