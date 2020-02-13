@@ -106,6 +106,19 @@ namespace dhboc { namespace redis {
         return _keys;
     }
 
+    std::vector< std::string > __list_ids(
+        redis_connector_t rg, 
+        const std::string& name, 
+        bool pin
+    ) {
+        std::vector< std::string > _ids;
+        auto _r = rg->query("LRANGE", "dhboc." + name + (pin ? ".pin_ids" : ".ids"), 0, -1);
+        for ( auto& id : _r ) {
+            _ids.push_back(id.content);
+        }
+        return _ids;
+    }
+
     Json::Value __list_object(
         redis_connector_t rg,
         const std::string& name,
@@ -120,7 +133,9 @@ namespace dhboc { namespace redis {
             auto _pr = rg->query("LRANGE", "dhboc." + name + ".pin_ids", 0, -1);
             for ( auto& id: _pr ) {
                 _pin_cache[id.content] = true;
-                _r_list.append(__get_item(rg, id.content, keys));
+                auto _item = __get_item(rg, id.content, keys);
+                _item["is_pin"] = true;
+                _r_list.append(_item);
             }
         }
 
@@ -131,7 +146,9 @@ namespace dhboc { namespace redis {
         for ( auto& id : _r ) {
             ++_used;
             if ( _pin_cache.find(id.content) != _pin_cache.end() ) continue;
-            _r_list.append(__get_item(rg, id.content, keys));
+            auto _item = __get_item(rg, id.content, keys);
+            _item["is_pin"] = false;
+            _r_list.append(_item);
             ++_lsize;
             if ( _lsize == page_size ) break;
         }
@@ -231,7 +248,9 @@ namespace dhboc { namespace redis {
         Json::Value _rlist(Json::arrayValue);
         auto _r = rg->query("LRANGE", "dhboc." + name + ".ids", 0, -1);
         for ( auto& id : _r ) {
-            _rlist.append(__get_item(rg, id.content, _keys));
+            auto _item = __get_item(rg, id.content, _keys);
+            _item["is_pin"] = false;
+            _rlist.append(_item);
         }
         Json::Value _result(Json::objectValue);
         _result["all"] = count_object(rg, name);
@@ -324,6 +343,50 @@ namespace dhboc { namespace redis {
     ) {
         return list_object( manager::shared_group(), 
             name, offset, page_size, filter_keys);
+    }
+    // Get the page info of an object type
+    Json::Value page_object(
+        redis_connector_t rg,
+        const std::string& name,
+        int page_size
+    ) {
+        auto _oit = g_object_infos.find(name);
+        if ( _oit == g_object_infos.end() ) {
+            Json::Value _empty(Json::nullValue);
+            return _empty;            
+        }
+        std::vector< std::string > _pin_ids(__list_ids(rg, name, true));
+        std::vector< std::string > _ids(__list_ids(rg, name, false));
+
+        size_t _offset = 0, _count = _pin_ids.size();
+        Json::Value _result(Json::arrayValue);
+        Json::Value _fp(Json::objectValue);
+        _fp["offset"] = 0;
+        _fp["page_size"] = page_size;
+        _result.append(_fp);
+        if ( _ids.size() <= (size_t)page_size ) return _result;
+        for ( ; _offset < _ids.size(); ++_offset ) {
+            if ( _count == 0 ) {
+                // New page
+                Json::Value _rp(Json::objectValue);
+                _rp["offset"] = (int)_offset;
+                _rp["page_size"] = (int)page_size;
+                _result.append(_rp);
+            }
+            auto _it = std::find(_pin_ids.begin(), _pin_ids.end(), _ids[_offset]);
+            if ( _it != _pin_ids.end() ) {
+                continue;
+            }
+            ++_count;
+            if ( _count == page_size ) _count = 0;
+        }
+        return _result;
+    }
+    Json::Value page_object(
+        const std::string& name,
+        int page_size
+    ) {
+        return page_object( manager::shared_group(), name, page_size );
     }
 
     // Recurse add a json object

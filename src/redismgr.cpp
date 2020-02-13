@@ -16,12 +16,51 @@ namespace dhboc { namespace redis {
         static manager _gm;
         return _gm;
     }
+    void manager::begin_subscribe_() {
+        notify_sub_ = rgroup_->subscribe([this](const std::string& key, const std::string& value) {
+            auto _nit = this->notification_map_.find(key);
+            if ( _nit == this->notification_map_.end() ) return;
+            if ( !_nit->second( value ) ) this->notification_map_.erase(_nit);
+        }, "PSUBSCRIBE", "__dhboc__:*:__notify__");
+
+        // Config to enable expire event
+        rgroup_->query("config", "set", "notify-keyspace-events", "Ex");
+        expire_sub_ = rgroup_->subscribe([this](const std::string& key, const std::string& value) {
+            if ( all_exp_ ) {
+                if ( ! all_exp_(value) ) return;
+            }
+            auto _eit = this->expire_map_.find(key);
+            if ( _eit == this->expire_map_.end() ) return;
+            _eit->second(value);
+            this->expire_map_.erase(_eit);
+        }, "PSUBSCRIBE", "__key*__:*");
+    }
 
     // C'str
-    manager::manager() : rgroup_(nullptr), enabled_expire_(false), expire_sub_(NULL) { }
+    manager::manager() : 
+        rgroup_(nullptr), 
+        notify_sub_(NULL),
+        expire_sub_(NULL) 
+    { }
+
+    manager::~manager() {
+        if ( notify_sub_ ) {
+            rgroup_->unsubscribe(notify_sub_);
+            notify_sub_ = NULL;
+        }
+        if ( expire_sub_ ) {
+            rgroup_->unsubscribe(expire_sub_);
+            expire_sub_ = NULL;
+        }
+    }
     bool manager::connect_to_redis_server( const std::string& rinfo, size_t count ) {
         ins().rgroup_ = std::make_shared< net::redis::group >( rinfo, count );
-        return ins().rgroup_->lowest_load_connector().is_validate();
+        bool _result = ins().rgroup_->lowest_load_connector().is_validate();
+        if ( !_result ) return _result;
+
+        // Begin Subscribe
+        ins().begin_subscribe_();
+        return _result;
     }
 
     // Get the shared group
@@ -32,47 +71,30 @@ namespace dhboc { namespace redis {
     // Register the notification for pub/sub
     void manager::register_notification( const std::string& key, notification_t cb ) {
         if ( cb == nullptr ) return;
-        task * _stask = ins().rgroup_->subscribe(
-            [cb](const std::string& k, const std::string& v) {
-                bool _goon = cb(v);
-                if ( _goon ) return;
-                manager::unregister_notification(k);
-            }, "SUBSCRIBE", key
-        );
-        if ( _stask != NULL ) {
-            ins().notification_map_[key] = _stask;
-        }
+        ins().notification_map_["__dhboc__:" + key + ":__notify__"] = cb;
     }
 
     // Unregister the notification session
     void manager::unregister_notification(const std::string& key) {
-        auto _it = ins().notification_map_.find(key);
+        std::string _k = "__dhboc__:" + key + ":__notify__";
+        auto _it = ins().notification_map_.find(_k);
         if ( _it == ins().notification_map_.end() ) return;
-        ins().rgroup_->unsubscribe(_it->second);
         ins().notification_map_.erase(_it);
     }
 
     // Wait for key expire
     void manager::wait_expire(const std::string& key, expire_t cb) {
         ins().expire_map_[key] = cb;
-        if ( ins().enabled_expire_ ) return;
-        ins().enabled_expire_ = true;
-        if ( ins().expire_sub_ != NULL ) return;
-        manager::query("config", "set", "notify-keyspace-events", "Ex");
-        ins().expire_sub_ = ins().rgroup_->subscribe(
-            [](const std::string& key, const std::string& value) {
-                auto _eit = ins().expire_map_.find(key);
-                if ( _eit == ins().expire_map_.end() ) return;
-                auto _cb = _eit->second;
-                ins().expire_map_.erase(_eit);
-                _cb(value);
-            }, "PSUBSCRIBE", "__key*__:*"
-        );
+    }
+
+    // For any expire, first to invoke this callback
+    void manager::on_key_expire( notification_t cb ) {
+        ins().all_exp_ = cb;
     }
 
     // Send notification key
     void manager::send_notification( const std::string& key, const std::string& value ) {
-        manager::query("PUBLISH", key, value);
+        manager::query("PUBLISH", "__dhboc__:" + key + ":__notify__", value);
     }
 }}
 

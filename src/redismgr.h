@@ -27,17 +27,21 @@ namespace dhboc { namespace redis {
     // Redis Manager
     class manager {
         redis_connector_t                           rgroup_;
-        std::map< std::string, task * >             notification_map_;
-        bool                                        enabled_expire_;
+        task *                                      notify_sub_;
+        std::map< std::string, notification_t >     notification_map_;
         task *                                      expire_sub_;
         std::map< std::string, expire_t >           expire_map_;
+        notification_t                              all_exp_;
     protected: 
         // Singleton
         static manager& ins();
 
         // C'str
         manager();
+        void begin_subscribe_();
     public:
+        ~manager();
+
         static bool connect_to_redis_server( const std::string& rinfo, size_t count );
 
         // Get the shared group
@@ -54,6 +58,9 @@ namespace dhboc { namespace redis {
 
         // Wait for key expire
         static void wait_expire(const std::string& key, expire_t cb);
+
+        // For any expire, first to invoke this callback
+        static void on_key_expire( notification_t cb );
 
         template < typename... cmd_t >
         static inline result_t query( const cmd_t&... c ) {

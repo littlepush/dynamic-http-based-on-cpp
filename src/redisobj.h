@@ -98,6 +98,17 @@ namespace dhboc { namespace redis {
         const std::vector< std::string >& filter_keys 
     );
 
+    // Get the page info of an object type
+    Json::Value page_object(
+        redis_connector_t rg,
+        const std::string& name,
+        int page_size
+    );
+    Json::Value page_object(
+        const std::string& name,
+        int page_size
+    );
+
     // Recurse add a json object
     // if the object does not existed, add it, and return 0
     // if the object existed, update it and return -1
