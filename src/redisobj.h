@@ -27,6 +27,8 @@ namespace dhboc { namespace redis {
 
     extern const filter_map_t                   empty_filter_map;
     extern const std::vector< std::string >     empty_filter_keys;
+    extern const std::vector< std::string >     empty_filter_tags;
+    extern const std::string                    empty_default_value;
 
     enum rtype {
         R_STRING,
@@ -35,10 +37,39 @@ namespace dhboc { namespace redis {
     };
 
     struct properity_t {
-        std::string             key;
-        rtype                   type;
-        bool                    unique;
-        std::string             dvalue;
+        std::string                                         key;
+        rtype                                               type;
+        bool                                                unique;
+        std::string                                         dvalue;
+        // Create an ordered set only when type is R_NUMBER and set ordered to true
+        bool                                                ordered;
+    };
+
+    inline properity_t generate_property(
+        const std::string& key, 
+        rtype type,
+        bool unique = false,
+        const std::string& dvalue = empty_default_value,
+        bool ordered = false
+    );
+
+    /*
+        tag filter format:
+        ^<tag> : put this tag in front of the list
+        $<tag> : put this tag in end of the list
+        +<tag> / <tag> : only match the tag
+        -<tag> : only not contains the tag
+        tag order format: 
+        <<tag> : order from small to large
+        ><tag> : order from large to small
+    */
+    struct list_arg_t {
+        int offset;
+        int page_size;
+        std::vector< std::string > keys;
+        std::vector< std::string > tags;
+        std::string orderby;
+        filter_map_t filters;
     };
 
     // Enable Item Cache
@@ -66,27 +97,40 @@ namespace dhboc { namespace redis {
     Json::Value list_object(
         redis_connector_t rg,
         const std::string& name,
-        int offset = 0,
-        int page_size = -1,
-        const std::vector< std::string >& filter_keys = empty_filter_keys,
-        const filter_map_t& filters = empty_filter_map
+        const list_arg_t& arg
     );
     Json::Value list_object(
         const std::string& name,
-        int offset = 0,
-        int page_size = -1,
-        const std::vector< std::string >& filter_keys = empty_filter_keys,
-        const filter_map_t& filters = empty_filter_map
+        const list_arg_t& arg
     );
 
-    // List only ids
-    std::vector< std::string > list_object_ids( 
-        redis_connector_t rg, const std::string& name,
-        const filter_map_t& filters = empty_filter_map
-    );
-    std::vector< std::string > list_object_ids( 
+    Json::Value list_object(
+        redis_connector_t rg,
         const std::string& name,
-        const filter_map_t& filters = empty_filter_map
+        int offset,
+        int page_size,
+        const std::string& orderby
+    );
+    Json::Value list_object(
+        const std::string& name,
+        int offset,
+        int page_size,
+        const std::string& orderby
+    );
+    Json::Value list_object(
+        redis_connector_t rg,
+        const std::string& name,
+        int offset,
+        int page_size,
+        const std::string& orderby,
+        const std::vector< std::string >& tags
+    );
+    Json::Value list_object(
+        const std::string& name,
+        int offset,
+        int page_size,
+        const std::string& orderby,
+        const std::vector< std::string >& tags
     );
 
     Json::Value list_object( 
@@ -139,6 +183,61 @@ namespace dhboc { namespace redis {
         const std::map< std::string, std::string > kv
     );
 
+    int tag_object(
+        redis_connector_t rg,
+        const std::string& name,
+        const std::string& id,
+        const std::vector< std::string >& tags
+    );
+    int tag_object(
+        const std::string& name,
+        const std::string& id,
+        const std::vector< std::string >& tags
+    );
+    int tag_object(
+        redis_connector_t rg,
+        const std::string& name,
+        const std::string& id,
+        const std::string& tag
+    );
+    int tag_object(
+        const std::string& name,
+        const std::string& id,
+        const std::string& tag
+    );
+    int untag_object(
+        redis_connector_t rg,
+        const std::string& name,
+        const std::string& id,
+        const std::vector< std::string >& tags
+    );
+    int untag_object(
+        const std::string& name,
+        const std::string& id,
+        const std::vector< std::string >& tags
+    );
+    int untag_object(
+        redis_connector_t rg,
+        const std::string& name,
+        const std::string& id,
+        const std::string& tag
+    );
+    int untag_object(
+        const std::string& name,
+        const std::string& id,
+        const std::string& tag
+    );
+
+    std::vector< std::string > get_tags(
+        redis_connector_t rg,
+        const std::string& name,
+        const std::string& id
+    );
+    std::vector< std::string > get_tags(
+        const std::string& name,
+        const std::string& id
+    );
+
     Json::Value get_object(
         redis_connector_t rg,
         const std::string& name,
@@ -171,39 +270,6 @@ namespace dhboc { namespace redis {
         const std::string& name,
         const std::string& id
     );
-
-    // Pin an object at the top of the list
-    int pin_object(
-        redis_connector_t rg,
-        const std::string& name,
-        const std::string& id
-    );
-    int pin_object(
-        const std::string& name,
-        const std::string& id
-    );
-
-    int unpin_object(
-        redis_connector_t rg,
-        const std::string& name,
-        const std::string& id
-    );
-    int unpin_object(
-        const std::string& name,
-        const std::string& id
-    );
-
-    // Set the limit of the pin list
-    int set_pin_limit(
-        redis_connector_t rg,
-        const std::string& name,
-        int limit
-    );
-    int set_pin_limit(
-        const std::string& name,
-        int limit
-    );
-
 }};
 
 #endif

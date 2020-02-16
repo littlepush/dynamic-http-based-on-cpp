@@ -68,7 +68,9 @@ void server_worker( net::http_request& req ) {
     net::http_server::send_response(_resp);
     auto _time_used = this_task::tick();
 
-    rlog::info << req.path() << " (" << _time_used << "ms)" << std::endl;
+    std::string _ip = rawf::socket_peerinfo(this_task::get_id()).ip.str();
+    rlog::info << req.method() << " " << req.path() << ", " << _ip 
+        << ", " << _time_used << "ms, pid: " << getpid() << std::endl;
 }
 
 bool _dhboc_forever( const std::string& startup, bool force_rebuild ) {
