@@ -97,12 +97,14 @@ namespace dhboc { namespace redis {
         redis_connector_t rg,
         const std::string& name,
         const std::string& id,
-        const std::string& orderby = empty_default_value
+        const std::string& orderby = empty_default_value,
+        const std::vector< std::string > tags = empty_filter_tags
     );
     int index_object(
         const std::string& name,
         const std::string& id,
-        const std::string& orderby = empty_default_value
+        const std::string& orderby = empty_default_value,
+        const std::vector< std::string > tags = empty_filter_tags
     );
 
     // Get the list of value

@@ -179,7 +179,7 @@ namespace dhboc { namespace redis {
         +<tag> : only match the tag
         -<tag> : only not contains the tag
     */
-    Json::Value __list_object(
+    std::vector< std::string > __filter_ids(
         redis_connector_t rg,
         const std::string& name,
         const list_arg_t& arg
@@ -257,6 +257,15 @@ namespace dhboc { namespace redis {
             if ( !_filterp(_id) ) continue;
             _all_ids.push_back(_id);
         }
+
+        return _all_ids;
+    }
+    Json::Value __list_object(
+        redis_connector_t rg,
+        const std::string& name,
+        const list_arg_t& arg
+    ) {
+        auto _all_ids = __filter_ids(rg, name, arg);
 
         std::vector< properity_t > _fkeys;
         auto _oit = g_object_infos.find(name);
@@ -380,28 +389,28 @@ namespace dhboc { namespace redis {
         redis_connector_t rg,
         const std::string& name,
         const std::string& id,
-        const std::string& orderby
+        const std::string& orderby,
+        const std::vector< std::string > tags
     ) {
-        std::string _tagkey = orderby;
-        if ( _tagkey.size() == 0 ) _tagkey = "__ctime__";
-        char _op = orderby[0];
-        if ( _op == '<' || _op == '>' ) {
-            _tagkey = orderby.substr(1);
+        list_arg_t _arg;
+        _arg.offset = 0;
+        _arg.page_size = -1;
+        _arg.orderby = orderby;
+        _arg.tags = tags;
+
+        auto _all_ids = __filter_ids(rg, name, _arg);
+        for ( size_t i = 0; i < _all_ids.size(); ++i ) {
+            if ( _all_ids[i] == id ) return (int)i;
         }
-        if ( _op != '<' && _op != '>' ) {
-            _op = '<';
-        }
-        std::string _cmd = (_op == '<' ? "ZRANK" : "ZREVRANK");
-        auto _r = rg->query(_cmd, "dhboc." + name + "." + _tagkey + ".ids", id);
-        if ( _r.size() == 0 || _r[0].is_nil() ) return -1;
-        return std::stoi(_r[0].content);
+        return -1;
     }
     int index_object(
         const std::string& name,
         const std::string& id,
-        const std::string& orderby
+        const std::string& orderby,
+        const std::vector< std::string > tags
     ) {
-        return index_object(manager::shared_group(), name, id, orderby);
+        return index_object(manager::shared_group(), name, id, orderby, tags);
     }
     // Get the list of value
     Json::Value list_object(
@@ -572,7 +581,7 @@ namespace dhboc { namespace redis {
             for ( auto& k : _order_k ) {
                 // Update the order's update time
                 std::string _lk = "dhboc." + name + "." + k + ".ids";
-                ignore_result(rg->query("ZADD", _lk, time(NULL), _id));
+                ignore_result(rg->query("ZADD", _lk, _itemkv[k], _id));
                 manager::send_notification(IDS_NOTIFICATION_KEY, _lk);
             }
             _itemkv["id"] = _id;
@@ -615,7 +624,7 @@ namespace dhboc { namespace redis {
             for ( auto& k : _order_k ) {
                 // Update the order's update time
                 std::string _lk = "dhboc." + name + "." + k + ".ids";
-                ignore_result(rg->query("ZADD", _lk, time(NULL), _id));
+                ignore_result(rg->query("ZADD", _lk, _itemkv[k], _id));
                 manager::send_notification(IDS_NOTIFICATION_KEY, _lk);
             }
             _itemkv["id"] = _id;
@@ -742,7 +751,7 @@ namespace dhboc { namespace redis {
         std::vector< std::string > _idkeys;
         int _offset = 0;
         do {
-            auto _r = rg->query("SCAN", _offset, "dhboc." + name + ".*._ids");
+            auto _r = rg->query("SCAN", _offset, "MATCH", "dhboc." + name + ".*.ids");
             _offset = std::stoi(_r[0].content);
             for ( auto& r : _r[1].subObjects ) {
                 _idkeys.push_back(r.content);
