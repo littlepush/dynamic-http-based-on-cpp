@@ -24,7 +24,7 @@ namespace dhboc { namespace redis {
     #define CACHE_NOTIFICATION_KEY                                  "__inner_object_patch__"
     #define IDS_NOTIFICATION_KEY                                    "__inner_ids_patch__"
 
-    inline properity_t generate_property(
+    properity_t generate_property(
         const std::string& key, 
         rtype type,
         bool unique,
@@ -145,18 +145,18 @@ namespace dhboc { namespace redis {
     std::vector< std::string > __list_ids(
         redis_connector_t rg,
         const std::string& name,
-        const std::string& orderby
+        const std::string& tag
     ) {
-        char _op = orderby[0];
-        std::string _orderkey = orderby;
+        char _op = tag[0];
+        std::string _tagkey = tag;
         if ( _op == '<' || _op == '>' ) {
-            _orderkey = orderby.substr(1);
+            _tagkey = tag.substr(1);
         }
         if ( _op != '<' && _op != '>' ) {
             _op = '<';
         }
         std::vector< std::string > _ids = g_ids_cache.get(
-            "dhboc." + name + "." + _orderkey + ".ids", 
+            "dhboc." + name + "." + _tagkey + ".ids", 
             [&](const std::string& lkey) {
                 std::vector< std::string > _result;
                 auto _r = rg->query("ZRANGE", lkey, 0, -1);
@@ -187,7 +187,7 @@ namespace dhboc { namespace redis {
         std::string _order = arg.orderby;
 
         // Get all ids
-        if ( _order.size() == 0 ) _order = "-__ctime__";
+        if ( _order.size() == 0 ) _order = "<__ctime__";
         auto _ids = __list_ids(rg, name, _order);
 
         // Foreach tag, filter the ids
@@ -376,7 +376,66 @@ namespace dhboc { namespace redis {
         return count_object( manager::shared_group(), name );
     }
 
+    int index_object(
+        redis_connector_t rg,
+        const std::string& name,
+        const std::string& id,
+        const std::string& orderby
+    ) {
+        std::string _tagkey = orderby;
+        if ( _tagkey.size() == 0 ) _tagkey = "__ctime__";
+        char _op = orderby[0];
+        if ( _op == '<' || _op == '>' ) {
+            _tagkey = orderby.substr(1);
+        }
+        if ( _op != '<' && _op != '>' ) {
+            _op = '<';
+        }
+        std::string _cmd = (_op == '<' ? "ZRANK" : "ZREVRANK");
+        auto _r = rg->query(_cmd, "dhboc." + name + "." + _tagkey + ".ids", id);
+        if ( _r.size() == 0 || _r[0].is_nil() ) return -1;
+        return std::stoi(_r[0].content);
+    }
+    int index_object(
+        const std::string& name,
+        const std::string& id,
+        const std::string& orderby
+    ) {
+        return index_object(manager::shared_group(), name, id, orderby);
+    }
     // Get the list of value
+    Json::Value list_object(
+        redis_connector_t rg,
+        const std::string& name
+    ) {
+        list_arg_t _arg;
+        _arg.offset = 0;
+        _arg.page_size = -1;
+        return __list_object(rg, name, _arg);        
+    }
+    Json::Value list_object(
+        const std::string& name
+    ) {
+        return list_object(manager::shared_group(), name);        
+    }
+
+    Json::Value list_object(
+        redis_connector_t rg, 
+        const std::string& name,
+        const std::vector< std::string > tags
+    ) {
+        list_arg_t _arg;
+        _arg.offset = 0;
+        _arg.page_size = -1;
+        _arg.tags = tags;
+        return __list_object(rg, name, _arg);
+    }
+    Json::Value list_object(
+        const std::string& name,
+        const std::vector< std::string > tags
+    ) {
+        return list_object(manager::shared_group(), name, tags);
+    }
     Json::Value list_object(
         redis_connector_t rg,
         const std::string& name,
@@ -463,7 +522,7 @@ namespace dhboc { namespace redis {
     // if the object does not existed, add it, and return 0
     // if the object existed, update it and return -1
     // on error, return > 1
-    int patch_object( 
+    std::string patch_object( 
         redis_connector_t rg,
         const std::string& name, 
         const Json::Value& jobject,
@@ -494,7 +553,7 @@ namespace dhboc { namespace redis {
                     auto _r = rg->query("GET", _uk);
                     if ( !_r[0].is_nil() && _r[0].content != _id ) {
                         // New value is not unique
-                        return 1;
+                        return std::string("");
                     }
                     _new_uk[_uk] = _id;
                     _old_uk.push_back("dhboc.unique." + name + "." + k.key + "." + _ov);
@@ -541,7 +600,7 @@ namespace dhboc { namespace redis {
                     auto _r = rg->query("GET", _uk);
                     if ( !_r[0].is_nil() ) {
                         // New value is not unique
-                        return 1;
+                        return std::string("");
                     }
                     _new_uk[_uk] = _id;
                 }
@@ -562,9 +621,9 @@ namespace dhboc { namespace redis {
             _itemkv["id"] = _id;
             __add_object(rg, name, _itemkv);
         }
-        return 0;
+        return _itemkv["id"];
     }
-    int patch_object( 
+    std::string patch_object( 
         const std::string& name, 
         const Json::Value& jobject,
         const format_map_t& format
@@ -572,14 +631,14 @@ namespace dhboc { namespace redis {
         return patch_object(manager::shared_group(), name, jobject, format);
     }
 
-    int patch_object(
+    std::string patch_object(
         redis_connector_t rg,
         const std::string& name,
         const Json::Value& jobject
     ) {
         return patch_object(rg, name, jobject, {});
     }
-    int patch_object(
+    std::string patch_object(
         const std::string& name,
         const Json::Value& jobject
     ) {
@@ -587,7 +646,7 @@ namespace dhboc { namespace redis {
             name, jobject, {});
     }
 
-    int patch_object(
+    std::string patch_object(
         redis_connector_t rg,
         const std::string& name,
         const std::map< std::string, std::string > kv
@@ -598,7 +657,7 @@ namespace dhboc { namespace redis {
         }
         return patch_object(rg, name, _jobj, {});
     }
-    int patch_object(
+    std::string patch_object(
         const std::string& name,
         const std::map< std::string, std::string > kv
     ) {
@@ -811,6 +870,20 @@ namespace dhboc { namespace redis {
         const std::string& id
     ) {
         return get_tags(manager::shared_group(), name, id);
+    }
+    int taglist_count(
+        redis_connector_t rg,
+        const std::string& name,
+        const std::string& tag
+    ) {
+        auto _ids = __list_ids(rg, name, tag);
+        return (int)_ids.size();
+    }
+    int taglist_count(
+        const std::string& name,
+        const std::string& tag
+    ) {
+        return taglist_count( manager::shared_group(), name, tag );
     }
 }};
 

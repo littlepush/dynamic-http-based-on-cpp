@@ -45,7 +45,7 @@ namespace dhboc { namespace redis {
         bool                                                ordered;
     };
 
-    inline properity_t generate_property(
+    properity_t generate_property(
         const std::string& key, 
         rtype type,
         bool unique = false,
@@ -93,7 +93,37 @@ namespace dhboc { namespace redis {
     int count_object( redis_connector_t rg, const std::string& name );
     int count_object( const std::string& name );
 
+    int index_object(
+        redis_connector_t rg,
+        const std::string& name,
+        const std::string& id,
+        const std::string& orderby = empty_default_value
+    );
+    int index_object(
+        const std::string& name,
+        const std::string& id,
+        const std::string& orderby = empty_default_value
+    );
+
     // Get the list of value
+    Json::Value list_object(
+        redis_connector_t rg,
+        const std::string& name
+    );
+    Json::Value list_object(
+        const std::string& name
+    );
+
+    Json::Value list_object(
+        redis_connector_t rg, 
+        const std::string& name,
+        const std::vector< std::string > tags
+    );
+    Json::Value list_object(
+        const std::string& name,
+        const std::vector< std::string > tags
+    );
+    
     Json::Value list_object(
         redis_connector_t rg,
         const std::string& name,
@@ -151,34 +181,34 @@ namespace dhboc { namespace redis {
     // if the object does not existed, add it, and return 0
     // if the object existed, update it and return -1
     // on error, return > 1
-    int patch_object( 
+    std::string patch_object( 
         redis_connector_t rg,
         const std::string& name, 
         const Json::Value& jobject,
         const format_map_t& format
     );
-    int patch_object(
+    std::string patch_object(
         const std::string& name, 
         const Json::Value& jobject,
         const format_map_t& format
     );
 
-    int patch_object(
+    std::string patch_object(
         redis_connector_t rg,
         const std::string& name,
         const Json::Value& jobject
     );
-    int patch_object(
+    std::string patch_object(
         const std::string& name,
         const Json::Value& jobject
     );
 
-    int patch_object(
+    std::string patch_object(
         redis_connector_t rg,
         const std::string& name,
         const std::map< std::string, std::string > kv
     );
-    int patch_object(
+    std::string patch_object(
         const std::string& name,
         const std::map< std::string, std::string > kv
     );
@@ -258,6 +288,16 @@ namespace dhboc { namespace redis {
         const std::string& name,
         const std::string& unique_key,
         const std::string& value
+    );
+
+    int taglist_count(
+        redis_connector_t rg,
+        const std::string& name,
+        const std::string& tag
+    );
+    int taglist_count(
+        const std::string& name,
+        const std::string& tag
     );
 
     // Delete object
