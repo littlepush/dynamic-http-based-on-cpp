@@ -22,6 +22,7 @@ namespace dhboc { namespace redis {
     typedef std::shared_ptr< net::redis::group >            redis_connector_t;
     typedef std::function< bool ( const std::string& ) >    notification_t;
     typedef std::function< void ( const std::string& ) >    expire_t;
+    typedef std::function< void ( const std::string& ) >    schedule_t;
     using pe::co::net::proto::redis::result_t;
 
     // Redis Manager
@@ -32,6 +33,8 @@ namespace dhboc { namespace redis {
         task *                                      expire_sub_;
         std::map< std::string, expire_t >           expire_map_;
         notification_t                              all_exp_;
+        task *                                      schedule_task_;
+        schedule_t                                  schedule_callback_;
     protected: 
         // Singleton
         static manager& ins();
@@ -61,6 +64,15 @@ namespace dhboc { namespace redis {
 
         // For any expire, first to invoke this callback
         static void on_key_expire( notification_t cb );
+
+        // Register an schedule task
+        static void register_schedule_task( time_t on, const std::string& task_info );
+
+        // Cancel schedule task
+        static void cancel_schedule_task( const std::string& task_info );
+
+        // Check schedule task
+        static void wait_schedule_task( schedule_t callback );
 
         template < typename... cmd_t >
         static inline result_t query( const cmd_t&... c ) {

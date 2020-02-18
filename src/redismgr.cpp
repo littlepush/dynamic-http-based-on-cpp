@@ -96,6 +96,38 @@ namespace dhboc { namespace redis {
     void manager::send_notification( const std::string& key, const std::string& value ) {
         manager::query("PUBLISH", "__dhboc__:" + key + ":__notify__", value);
     }
+
+    // Register an schedule task
+    void manager::register_schedule_task( time_t on, const std::string& task_info ) {
+        ignore_result(manager::query(
+            "ZADD", "dhboc.__schedule__.__task__", on, task_info
+        ));
+    }
+    // Cancel schedule task
+    void manager::cancel_schedule_task( const std::string& task_info ) {
+        ignore_result(manager::query(
+            "ZREM", "dhboc.__schedule__.__task__", task_info
+        ));
+    }
+
+    // Check schedule task
+    void manager::wait_schedule_task( schedule_t callback ) {
+        ins().schedule_callback_ = callback;
+        if ( ins().schedule_task_ != NULL ) return;
+        ins().schedule_task_ = loop::main.do_loop([]() {
+            // Fetch tasks until now
+            time_t _now = time(NULL);
+            auto _r = manager::query("ZRANGEBYSCORE", "dhboc.__schedule__.__task__", "-inf", _now);
+            if ( _r.size() == 0 ) return;
+            for ( auto& r : _r ) {
+                if ( ins().schedule_callback_ ) {
+                    ins().schedule_callback_(r.content);
+                }
+                // Remove the task from the sort
+                ignore_result(manager::query("ZREM", "dhboc.__schedule__.__task__", r.content));
+            }
+        }, std::chrono::seconds(30));
+    }
 }}
 
 // Push Chen
