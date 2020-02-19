@@ -49,6 +49,14 @@ namespace dhboc { namespace redis {
         });
     }
 
+    bool __string_to_bool( const std::string& value ) {
+        if ( value.size() == 0 ) return false;
+        if ( value == "true" ) return true;
+        if ( value == "false" ) return false;
+        if ( value == "0" ) return false;
+        return true;
+    }
+
     Json::Value __get_item(
         redis_connector_t rg,
         const std::string& name,
@@ -92,6 +100,9 @@ namespace dhboc { namespace redis {
                         _result[_k] = std::stof(_prop_keys[i].dvalue);
                         continue;
                     }
+                    if ( _t == R_BOOLEAN && _prop_keys[i].dvalue.size() > 0 ) {
+                        _result[_k] = __string_to_bool(_prop_keys[i].dvalue);
+                    }
                     _result[_k] = Json::Value(Json::nullValue);
                     continue;
                 }
@@ -99,6 +110,8 @@ namespace dhboc { namespace redis {
                     _result[_k] = _r[i].content;
                 } else if ( _t == R_NUMBER ) {
                     _result[_k] = std::stof(_r[i].content);
+                } else if ( _t == R_BOOLEAN ) {
+                    _result[_k] = __string_to_bool(_r[i].content);
                 }
             }
             size_t _ts = _prop_keys.size();
@@ -777,6 +790,83 @@ namespace dhboc { namespace redis {
         const std::string& id
     ) {
         return delete_object( manager::shared_group(), name, id );
+    }
+
+    int inc_order_value(
+        redis_connector_t rg,
+        const std::string& name,
+        const std::string& id,
+        const std::string& key,
+        int64_t value
+    ) {
+        auto _oit = g_object_infos.find(name);
+        if ( _oit == g_object_infos.end() ) return 1;
+        auto _kit = _oit->second.find(key);
+        if ( _kit == _oit->second.end() ) return 2;
+        if ( !_kit->second.ordered ) return 3;
+
+        auto _item = get_object(rg, name, id);
+        if ( _item.isNull() ) return 4;
+
+        int64_t _ov = _item["key"].asInt64();
+        _ov += value;
+        patch_object(rg, name, {
+            {"id", id},
+            {key, std::to_string(_ov)}
+        });
+        return 0;
+    }
+    int inc_order_value(
+        const std::string& name,
+        const std::string& id,
+        const std::string& key,
+        int64_t value
+    ) {
+        return inc_order_value( manager::shared_group(), name, id, key, value );
+    }
+    int dcr_order_value(
+        redis_connector_t rg,
+        const std::string& name,
+        const std::string& id,
+        const std::string& key,
+        int64_t value
+    ) {
+        return inc_order_value( rg, name, id, key, (value * -1) );
+    }
+    int dcr_order_value(
+        const std::string& name,
+        const std::string& id,
+        const std::string& key,
+        int64_t value
+    ) {
+        return dcr_order_value( manager::shared_group(), name, id, key, value );
+    }
+    int set_order_value(
+        redis_connector_t rg,
+        const std::string& name,
+        const std::string& id,
+        const std::string& key,
+        int64_t value
+    ) {
+        auto _oit = g_object_infos.find(name);
+        if ( _oit == g_object_infos.end() ) return 1;
+        auto _kit = _oit->second.find(key);
+        if ( _kit == _oit->second.end() ) return 2;
+        if ( !_kit->second.ordered ) return 3;
+
+        patch_object(rg, name, {
+            {"id", id},
+            {key, std::to_string(value)}
+        });
+        return 0;
+    }
+    int set_order_value(
+        const std::string& name,
+        const std::string& id,
+        const std::string& key,
+        int64_t value
+    ) {
+        return set_order_value( manager::shared_group(), name, id, key, value );
     }
 
     int tag_object(

@@ -33,6 +33,7 @@ namespace dhboc { namespace redis {
     enum rtype {
         R_STRING,
         R_NUMBER,
+        R_BOOLEAN,
         R_NULL
     };
 
@@ -213,6 +214,46 @@ namespace dhboc { namespace redis {
     std::string patch_object(
         const std::string& name,
         const std::map< std::string, std::string > kv
+    );
+
+    int inc_order_value(
+        redis_connector_t rg,
+        const std::string& name,
+        const std::string& id,
+        const std::string& key,
+        int64_t value = 1
+    );
+    int inc_order_value(
+        const std::string& name,
+        const std::string& id,
+        const std::string& key,
+        int64_t value = 1
+    );
+    int dcr_order_value(
+        redis_connector_t rg,
+        const std::string& name,
+        const std::string& id,
+        const std::string& key,
+        int64_t value = 1
+    );
+    int dcr_order_value(
+        const std::string& name,
+        const std::string& id,
+        const std::string& key,
+        int64_t value = 1
+    );
+    int set_order_value(
+        redis_connector_t rg,
+        const std::string& name,
+        const std::string& id,
+        const std::string& key,
+        int64_t value
+    );
+    int set_order_value(
+        const std::string& name,
+        const std::string& id,
+        const std::string& key,
+        int64_t value
     );
 
     int tag_object(
