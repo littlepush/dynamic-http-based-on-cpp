@@ -18,13 +18,14 @@ using namespace pe::co;
 using namespace pe::co::net;
 using namespace pe::co::net::proto;
 
+#include <regex>
+
 typedef void (*http_handler)(const net::http_request&, net::http_response&);
-typedef bool(*router_parser)(const std::vector<std::string>&);
 
 struct router_t {
-    std::string         method;
-    router_parser       parser;
-    std::string         handler;
+    std::string                 method;
+    std::string                 match_rule;
+    std::string                 handler;
 };
 
 struct application_t {

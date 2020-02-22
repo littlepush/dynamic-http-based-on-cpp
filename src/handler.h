@@ -15,6 +15,12 @@
 #include "dhboc.h"
 #include "startup.h"
 
+struct regex_router_t {
+    std::string     method;
+    std::string     handler;
+    std::regex      rule;
+};
+
 /*
     Compile the whole web as a single content handler lib
     This class will scan and find all page/css/js/non-binary
@@ -32,6 +38,9 @@ class content_handlers {
 
     // Handler names(path/function_name)
     std::map< std::string, std::string >    handler_names_;
+
+    // Internal Routers
+    std::vector< regex_router_t >           routers_;
 
     // Handler function points
     std::map< std::string, http_handler >   handlers_;

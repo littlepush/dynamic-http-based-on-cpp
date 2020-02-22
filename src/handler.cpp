@@ -9,6 +9,7 @@
 
 #include "handler.h"
 #include <dlfcn.h>
+#include <regex>
 
 static std::map< std::string, bool > g_ctnt_ext = {
     {"cpp", true},
@@ -260,10 +261,6 @@ void content_handlers::load_handlers() {
 
     // Load all router required handler
     for ( const auto& r : app.router ) {
-        if ( !r.parser ) {
-            rlog::error << "router has no parser" << std::endl;
-            throw std::string("router has no parser");
-        }
         http_handler _h = startupmgr::search_handler(r.handler);
         if ( _h == NULL ) {
             rlog::error << "router handler: " << r.handler 
@@ -272,6 +269,10 @@ void content_handlers::load_handlers() {
         }
         std::string _rpath = "r_" + r.method + "_" + r.handler;
         _cs.handlers_[_rpath] = _h;
+
+        _cs.routers_.push_back({
+            r.method, r.handler, std::regex(r.match_rule)
+        });
     }
 }
 
@@ -285,11 +286,14 @@ bool content_handlers::try_find_handler(const http_request& req, http_response& 
     // Search app.router first
     std::string _p = req.path();
 
-    if ( app.router.size() > 0 ) {
-        auto _pc = req.path_components();
-        for ( auto& r : app.router ) {
-            if ( req.method() != r.method ) continue;
-            if ( !r.parser(_pc) ) continue;
+    if ( _cs.routers_.size() > 0 ) {
+        for ( auto& r : _cs.routers_ ) {
+            if ( req.method() != r.method ) {
+                continue;
+            }
+            if ( ! std::regex_match(_p, r.rule) ) {
+                continue;
+            }
             // Do fine router
             _p = "r_" + r.method + "_" + r.handler;
             break;
@@ -297,7 +301,9 @@ bool content_handlers::try_find_handler(const http_request& req, http_response& 
     }
 
     auto _h = _cs.handlers_.find(_p);
-    if ( _h == _cs.handlers_.end() ) return false;
+    if ( _h == _cs.handlers_.end() ) {
+        return false;
+    }
     #ifdef DEBUG
     std::cout << "do find the handler for path: " << req.path() << std::endl;
     #endif
