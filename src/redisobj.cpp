@@ -211,7 +211,8 @@ namespace dhboc { namespace redis {
                 auto _tids = __list_ids(rg, name, _t);
                 for ( auto _tit = _tids.rbegin(); _tit != _tids.rend(); ++_tit ) {
                     auto _iit = std::find( _ids.begin(), _ids.end(), *_tit );
-                    if ( _iit != _ids.end() ) _ids.erase(_iit);
+                    if ( _iit == _ids.end() ) continue;
+                    _ids.erase(_iit);
                     _ids.insert(_ids.begin(), *_tit);
                 }
             } else if ( _tag[0] == '$' ) {
@@ -219,7 +220,8 @@ namespace dhboc { namespace redis {
                 auto _tids = __list_ids(rg, name, _t);
                 for ( auto _tit = _tids.begin(); _tit != _tids.end(); ++_tit ) {
                     auto _iit = std::find( _ids.begin(), _ids.end(), *_tit );
-                    if ( _iit != _ids.end() ) _ids.erase(_iit);
+                    if ( _iit == _ids.end() ) continue;
+                    _ids.erase(_iit);
                     _ids.push_back(*_tit);
                 }                
             } else if ( _tag[0] == '-' ) {
