@@ -137,7 +137,8 @@ LTLIBRARIES = $(lib_LTLIBRARIES)
 libdhboc_la_LIBADD =
 am__dirstamp = $(am__leading_dot)dirstamp
 am_libdhboc_la_OBJECTS = src/modules.lo src/startup.lo src/handler.lo \
-	src/dhboc.lo src/redismgr.lo src/redisobj.lo src/session.lo
+	src/dhboc.lo src/redismgr.lo src/redisobj.lo src/session.lo \
+	src/html.lo
 libdhboc_la_OBJECTS = $(am_libdhboc_la_OBJECTS)
 AM_V_lt = $(am__v_lt_@AM_V@)
 am__v_lt_ = $(am__v_lt_@AM_DEFAULT_V@)
@@ -162,10 +163,10 @@ DEFAULT_INCLUDES = -I.@am__isrc@
 depcomp = $(SHELL) $(top_srcdir)/build/depcomp
 am__maybe_remake_depfiles = depfiles
 am__depfiles_remade = src/$(DEPDIR)/dhboc.Plo \
-	src/$(DEPDIR)/handler.Plo src/$(DEPDIR)/main.Po \
-	src/$(DEPDIR)/modules.Plo src/$(DEPDIR)/redismgr.Plo \
-	src/$(DEPDIR)/redisobj.Plo src/$(DEPDIR)/session.Plo \
-	src/$(DEPDIR)/startup.Plo
+	src/$(DEPDIR)/handler.Plo src/$(DEPDIR)/html.Plo \
+	src/$(DEPDIR)/main.Po src/$(DEPDIR)/modules.Plo \
+	src/$(DEPDIR)/redismgr.Plo src/$(DEPDIR)/redisobj.Plo \
+	src/$(DEPDIR)/session.Plo src/$(DEPDIR)/startup.Plo
 am__mv = mv -f
 CXXCOMPILE = $(CXX) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) \
 	$(AM_CPPFLAGS) $(CPPFLAGS) $(AM_CXXFLAGS) $(CXXFLAGS)
@@ -378,7 +379,8 @@ libdhboc_la_SOURCES = \
 	src/dhboc.cpp \
 	src/redismgr.cpp \
 	src/redisobj.cpp \
-	src/session.cpp
+	src/session.cpp \
+	src/html.cpp
 
 pkginclude_HEADERS = \
 	src/dhboc.h \
@@ -387,7 +389,8 @@ pkginclude_HEADERS = \
 	src/handler.h \
 	src/redismgr.h \
 	src/redisobj.h \
-	src/session.h
+	src/session.h \
+	src/html.h
 
 dhboc_LDADD = libdhboc.la
 dhboc_SOURCES = \
@@ -527,6 +530,7 @@ src/dhboc.lo: src/$(am__dirstamp) src/$(DEPDIR)/$(am__dirstamp)
 src/redismgr.lo: src/$(am__dirstamp) src/$(DEPDIR)/$(am__dirstamp)
 src/redisobj.lo: src/$(am__dirstamp) src/$(DEPDIR)/$(am__dirstamp)
 src/session.lo: src/$(am__dirstamp) src/$(DEPDIR)/$(am__dirstamp)
+src/html.lo: src/$(am__dirstamp) src/$(DEPDIR)/$(am__dirstamp)
 
 libdhboc.la: $(libdhboc_la_OBJECTS) $(libdhboc_la_DEPENDENCIES) $(EXTRA_libdhboc_la_DEPENDENCIES) 
 	$(AM_V_CXXLD)$(CXXLINK) -rpath $(libdir) $(libdhboc_la_OBJECTS) $(libdhboc_la_LIBADD) $(LIBS)
@@ -546,6 +550,7 @@ distclean-compile:
 
 @AMDEP_TRUE@@am__include@ @am__quote@src/$(DEPDIR)/dhboc.Plo@am__quote@ # am--include-marker
 @AMDEP_TRUE@@am__include@ @am__quote@src/$(DEPDIR)/handler.Plo@am__quote@ # am--include-marker
+@AMDEP_TRUE@@am__include@ @am__quote@src/$(DEPDIR)/html.Plo@am__quote@ # am--include-marker
 @AMDEP_TRUE@@am__include@ @am__quote@src/$(DEPDIR)/main.Po@am__quote@ # am--include-marker
 @AMDEP_TRUE@@am__include@ @am__quote@src/$(DEPDIR)/modules.Plo@am__quote@ # am--include-marker
 @AMDEP_TRUE@@am__include@ @am__quote@src/$(DEPDIR)/redismgr.Plo@am__quote@ # am--include-marker
@@ -889,6 +894,7 @@ distclean: distclean-am
 	-rm -f $(am__CONFIG_DISTCLEAN_FILES)
 		-rm -f src/$(DEPDIR)/dhboc.Plo
 	-rm -f src/$(DEPDIR)/handler.Plo
+	-rm -f src/$(DEPDIR)/html.Plo
 	-rm -f src/$(DEPDIR)/main.Po
 	-rm -f src/$(DEPDIR)/modules.Plo
 	-rm -f src/$(DEPDIR)/redismgr.Plo
@@ -944,6 +950,7 @@ maintainer-clean: maintainer-clean-am
 	-rm -rf $(top_srcdir)/autom4te.cache
 		-rm -f src/$(DEPDIR)/dhboc.Plo
 	-rm -f src/$(DEPDIR)/handler.Plo
+	-rm -f src/$(DEPDIR)/html.Plo
 	-rm -f src/$(DEPDIR)/main.Po
 	-rm -f src/$(DEPDIR)/modules.Plo
 	-rm -f src/$(DEPDIR)/redismgr.Plo

@@ -123,6 +123,7 @@ std::string dhboc_time_string( const std::string& ts );
 #include "redismgr.h"
 #include "redisobj.h"
 #include "session.h"
+#include "html.h"
 
 #endif
 

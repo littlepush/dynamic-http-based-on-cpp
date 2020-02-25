@@ -13,7 +13,8 @@ libdhboc_la_SOURCES = \
 	src/dhboc.cpp \
 	src/redismgr.cpp \
 	src/redisobj.cpp \
-	src/session.cpp
+	src/session.cpp \
+	src/html.cpp
 
 pkginclude_HEADERS = \
 	src/dhboc.h \
@@ -22,7 +23,8 @@ pkginclude_HEADERS = \
 	src/handler.h \
 	src/redismgr.h \
 	src/redisobj.h \
-	src/session.h
+	src/session.h \
+	src/html.h
 
 bin_PROGRAMS = dhboc
 dhboc_LDADD = libdhboc.la
