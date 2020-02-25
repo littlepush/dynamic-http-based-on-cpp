@@ -219,39 +219,39 @@ namespace dhboc { namespace redis {
     int inc_order_value(
         redis_connector_t rg,
         const std::string& name,
-        const std::string& id,
+        const std::string& obj_id,
         const std::string& key,
         int64_t value = 1
     );
     int inc_order_value(
         const std::string& name,
-        const std::string& id,
+        const std::string& obj_id,
         const std::string& key,
         int64_t value = 1
     );
     int dcr_order_value(
         redis_connector_t rg,
         const std::string& name,
-        const std::string& id,
+        const std::string& obj_id,
         const std::string& key,
         int64_t value = 1
     );
     int dcr_order_value(
         const std::string& name,
-        const std::string& id,
+        const std::string& obj_id,
         const std::string& key,
         int64_t value = 1
     );
     int set_order_value(
         redis_connector_t rg,
         const std::string& name,
-        const std::string& id,
+        const std::string& obj_id,
         const std::string& key,
         int64_t value
     );
     int set_order_value(
         const std::string& name,
-        const std::string& id,
+        const std::string& obj_id,
         const std::string& key,
         int64_t value
     );
@@ -259,66 +259,66 @@ namespace dhboc { namespace redis {
     int tag_object(
         redis_connector_t rg,
         const std::string& name,
-        const std::string& id,
+        const std::string& obj_id,
         const std::vector< std::string >& tags
     );
     int tag_object(
         const std::string& name,
-        const std::string& id,
+        const std::string& obj_id,
         const std::vector< std::string >& tags
     );
     int tag_object(
         redis_connector_t rg,
         const std::string& name,
-        const std::string& id,
+        const std::string& obj_id,
         const std::string& tag
     );
     int tag_object(
         const std::string& name,
-        const std::string& id,
+        const std::string& obj_id,
         const std::string& tag
     );
     int untag_object(
         redis_connector_t rg,
         const std::string& name,
-        const std::string& id,
+        const std::string& obj_id,
         const std::vector< std::string >& tags
     );
     int untag_object(
         const std::string& name,
-        const std::string& id,
+        const std::string& obj_id,
         const std::vector< std::string >& tags
     );
     int untag_object(
         redis_connector_t rg,
         const std::string& name,
-        const std::string& id,
+        const std::string& obj_id,
         const std::string& tag
     );
     int untag_object(
         const std::string& name,
-        const std::string& id,
+        const std::string& obj_id,
         const std::string& tag
     );
 
     std::vector< std::string > get_tags(
         redis_connector_t rg,
         const std::string& name,
-        const std::string& id
+        const std::string& obj_id
     );
     std::vector< std::string > get_tags(
         const std::string& name,
-        const std::string& id
+        const std::string& obj_id
     );
 
     Json::Value get_object(
         redis_connector_t rg,
         const std::string& name,
-        const std::string& id
+        const std::string& obj_id
     );
     Json::Value get_object(
         const std::string& name,
-        const std::string& id
+        const std::string& obj_id
     );
 
     Json::Value get_object(
@@ -347,11 +347,11 @@ namespace dhboc { namespace redis {
     int delete_object(
         redis_connector_t rg,
         const std::string& name,
-        const std::string& id
+        const std::string& obj_id
     );
     int delete_object(
         const std::string& name,
-        const std::string& id
+        const std::string& obj_id
     );
 }};
 

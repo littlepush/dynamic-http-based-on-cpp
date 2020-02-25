@@ -57,75 +57,89 @@ namespace dhboc { namespace redis {
         return true;
     }
 
+    Json::Value __get_item_from_server(
+        const std::string& key, 
+        redis_connector_t rg, 
+        const std::string& name
+    ) {
+        // Get full object
+        net::proto::redis::command _cmd;
+        auto _oit = g_object_infos.find(name);
+        if ( _oit == g_object_infos.end() ) return Json::Value(Json::nullValue);
+
+        _cmd << "HMGET" << "dhboc.__item__." + key;
+        std::vector< properity_t > _prop_keys;
+        for ( auto& _pkv : _oit->second ) {
+            _cmd << _pkv.first;
+            _prop_keys.push_back( _pkv.second );
+        }
+        _cmd << "id" << "__ctime__" << "__utime__" << "__type__";
+        auto _r = rg->query( std::move(_cmd) );
+        // Type not match or not existed
+        if ( _r.rbegin()->content != name ) {
+            return Json::Value(Json::nullValue);
+        }
+        Json::Value _result(Json::objectValue);
+        
+        for ( size_t i = 0; i < _prop_keys.size(); ++i ) {
+            rtype _t = _prop_keys[i].type;
+            std::string _k = _prop_keys[i].key;
+            if ( _t == R_NULL ) {
+                if ( _k == "__dummy__" ) continue;
+                _result[_k] = Json::Value(Json::nullValue);
+                continue;
+            }
+            if ( _r[i].is_nil() || _r[i].is_empty() || _r[i].content.size() == 0 ) {
+                if ( _t == R_STRING ) {
+                    _result[_k] = _prop_keys[i].dvalue;
+                    continue;
+                }
+                if ( _t == R_NUMBER && _prop_keys[i].dvalue.size() > 0 ) {
+                    _result[_k] = std::stof(_prop_keys[i].dvalue);
+                    continue;
+                }
+                if ( _t == R_BOOLEAN && _prop_keys[i].dvalue.size() > 0 ) {
+                    _result[_k] = __string_to_bool(_prop_keys[i].dvalue);
+                }
+                _result[_k] = Json::Value(Json::nullValue);
+                continue;
+            }
+            if ( _t == R_STRING ) {
+                _result[_k] = _r[i].content;
+            } else if ( _t == R_NUMBER ) {
+                if ( ! utils::is_number(_r[i].content) ) {
+                    rlog::error << "type: " << name << " key: " << 
+                        _k << " defined to be number, but the data is not validate: " << 
+                        _r[i].content << std::endl;
+                    _result[_k] = 0.f;
+                } else {
+                    _result[_k] = std::stof(_r[i].content);
+                }
+            } else if ( _t == R_BOOLEAN ) {
+                _result[_k] = __string_to_bool(_r[i].content);
+            }
+        }
+        size_t _ts = _prop_keys.size();
+        _result["id"] = _r[_ts].content;
+        _result["create_time"] = _r[_ts + 1].content;
+        _result["update_time"] = _r[_ts + 2].content;
+        _result["__type__"] = _r[_ts + 3].content;
+
+        return _result;
+    }
+
     Json::Value __get_item(
         redis_connector_t rg,
         const std::string& name,
-        const std::string& id,
+        const std::string& obj_id,
         const std::vector< properity_t >& filter_keys = empty_fetch_keys
     ) {
-        Json::Value& _item = g_object_cache.get(id, [&](const std::string& key) {
-            // Get full object
-            net::proto::redis::command _cmd;
-            auto _oit = g_object_infos.find(name);
-            if ( _oit == g_object_infos.end() ) return Json::Value(Json::nullValue);
-
-            _cmd << "HMGET" << "dhboc.__item__." + key;
-            std::vector< properity_t > _prop_keys;
-            for ( auto& _pkv : _oit->second ) {
-                _cmd << _pkv.first;
-                _prop_keys.push_back( _pkv.second );
-            }
-            _cmd << "id" << "__ctime__" << "__utime__" << "__type__";
-            auto _r = rg->query( std::move(_cmd) );
-            // Type not match or not existed
-            if ( _r.rbegin()->content != name ) {
-                return Json::Value(Json::nullValue);
-            }
-            Json::Value _result(Json::objectValue);
-            
-            for ( size_t i = 0; i < _prop_keys.size(); ++i ) {
-                rtype _t = _prop_keys[i].type;
-                std::string _k = _prop_keys[i].key;
-                if ( _t == R_NULL ) {
-                    if ( _k == "__dummy__" ) continue;
-                    _result[_k] = Json::Value(Json::nullValue);
-                    continue;
-                }
-                if ( _r[i].is_nil() || _r[i].is_empty() || _r[i].content.size() == 0 ) {
-                    if ( _t == R_STRING ) {
-                        _result[_k] = _prop_keys[i].dvalue;
-                        continue;
-                    }
-                    if ( _t == R_NUMBER && _prop_keys[i].dvalue.size() > 0 ) {
-                        _result[_k] = std::stof(_prop_keys[i].dvalue);
-                        continue;
-                    }
-                    if ( _t == R_BOOLEAN && _prop_keys[i].dvalue.size() > 0 ) {
-                        _result[_k] = __string_to_bool(_prop_keys[i].dvalue);
-                    }
-                    _result[_k] = Json::Value(Json::nullValue);
-                    continue;
-                }
-                if ( _t == R_STRING ) {
-                    _result[_k] = _r[i].content;
-                } else if ( _t == R_NUMBER ) {
-                    _result[_k] = std::stof(_r[i].content);
-                } else if ( _t == R_BOOLEAN ) {
-                    _result[_k] = __string_to_bool(_r[i].content);
-                }
-            }
-            size_t _ts = _prop_keys.size();
-            _result["id"] = _r[_ts].content;
-            _result["create_time"] = _r[_ts + 1].content;
-            _result["update_time"] = _r[_ts + 2].content;
-            _result["__type__"] = _r[_ts + 3].content;
-
-            return _result;
-        });
+        Json::Value& _item = g_object_cache.get(
+            obj_id, std::bind(__get_item_from_server, std::placeholders::_1, rg, name));
 
         // Invalidate item
         if ( _item.isNull() ) {
-            g_object_cache.erase(id);
+            g_object_cache.erase(obj_id);
             return Json::Value(Json::nullValue);
         }
 
@@ -189,6 +203,7 @@ namespace dhboc { namespace redis {
         tag format:
         ^<tag> : put this tag in front of the list
         $<tag> : put this tag in end of the list
+        *<tag>,<tag>,<tag>... : may match any tag
         +<tag> : only match the tag
         -<tag> : only not contains the tag
     */
@@ -224,6 +239,22 @@ namespace dhboc { namespace redis {
                     _ids.erase(_iit);
                     _ids.push_back(*_tit);
                 }                
+            } else if ( _tag[0] == '*' ) {
+                _t = _tag.substr(1);
+                auto _allt = utils::split(_t, ",");
+                std::set< std::string > _match_ids;
+                for ( auto & t : _allt ) {
+                    auto _tids = __list_ids(rg, name, t);
+                    for ( auto& id : _tids ) {
+                        _match_ids.insert(id);
+                    }
+                }
+                std::vector< std::string > _final_ids;
+                for ( auto& id : _ids ) {
+                    if ( _match_ids.find(id) == _match_ids.end() ) continue;
+                    _final_ids.push_back(id);
+                }
+                _ids = std::move(_final_ids);
             } else if ( _tag[0] == '-' ) {
                 _t = _tag.substr(1);
                 auto _tids = __list_ids(rg, name, _t);
@@ -241,7 +272,7 @@ namespace dhboc { namespace redis {
                     auto _it = std::find(_tids.begin(), _tids.end(), _id);
                     if ( _it != _tids.end() ) _match_ids.push_back(_id);
                 }
-                _ids = _match_ids;
+                _ids = std::move(_match_ids);
             }
         }
 
@@ -691,15 +722,15 @@ namespace dhboc { namespace redis {
     Json::Value get_object(
         redis_connector_t rg,
         const std::string& name,
-        const std::string& id
+        const std::string& obj_id
     ) {
-        return __get_item(rg, name, id);
+        return __get_item(rg, name, obj_id);
     }
     Json::Value get_object(
         const std::string& name,
-        const std::string& id
+        const std::string& obj_id
     ) {
-        return get_object( manager::shared_group(), name, id );
+        return get_object( manager::shared_group(), name, obj_id );
     }
 
     Json::Value get_object(
@@ -743,13 +774,13 @@ namespace dhboc { namespace redis {
     int delete_object(
         redis_connector_t rg,
         const std::string& name,
-        const std::string& id
+        const std::string& obj_id
     ) {
         // No Such type
         auto _keys = __get_keys(name);
         if ( _keys.size() == 0 ) return 1;
 
-        auto _o = __get_item(rg, name, id);
+        auto _o = __get_item(rg, name, obj_id);
         // No such id
         if ( _o.isNull() ) return 1;
 
@@ -774,30 +805,30 @@ namespace dhboc { namespace redis {
         } while ( _offset != 0 );
 
         for ( auto& lid : _idkeys ) {
-            auto _r = rg->query("ZREM", lid, id);
+            auto _r = rg->query("ZREM", lid, obj_id);
             if ( _r[0].content == "0" ) continue;
             manager::send_notification(IDS_NOTIFICATION_KEY, lid);
         }
 
         // Remove the object
-        ignore_result(rg->query("DEL", "dhboc.__item__." + id));
+        ignore_result(rg->query("DEL", "dhboc.__item__." + obj_id));
 
         // Remove from the cache
-        manager::send_notification(CACHE_NOTIFICATION_KEY, id);
+        manager::send_notification(CACHE_NOTIFICATION_KEY, obj_id);
 
         return 0;
     }
     int delete_object(
         const std::string& name,
-        const std::string& id
+        const std::string& obj_id
     ) {
-        return delete_object( manager::shared_group(), name, id );
+        return delete_object( manager::shared_group(), name, obj_id );
     }
 
     int inc_order_value(
         redis_connector_t rg,
         const std::string& name,
-        const std::string& id,
+        const std::string& obj_id,
         const std::string& key,
         int64_t value
     ) {
@@ -807,46 +838,46 @@ namespace dhboc { namespace redis {
         if ( _kit == _oit->second.end() ) return 2;
         if ( !_kit->second.ordered ) return 3;
 
-        auto _item = get_object(rg, name, id);
+        auto _item = get_object(rg, name, obj_id);
         if ( _item.isNull() ) return 4;
 
         int64_t _ov = _item["key"].asInt64();
         _ov += value;
         patch_object(rg, name, {
-            {"id", id},
+            {"id", obj_id},
             {key, std::to_string(_ov)}
         });
         return 0;
     }
     int inc_order_value(
         const std::string& name,
-        const std::string& id,
+        const std::string& obj_id,
         const std::string& key,
         int64_t value
     ) {
-        return inc_order_value( manager::shared_group(), name, id, key, value );
+        return inc_order_value( manager::shared_group(), name, obj_id, key, value );
     }
     int dcr_order_value(
         redis_connector_t rg,
         const std::string& name,
-        const std::string& id,
+        const std::string& obj_id,
         const std::string& key,
         int64_t value
     ) {
-        return inc_order_value( rg, name, id, key, (value * -1) );
+        return inc_order_value( rg, name, obj_id, key, (value * -1) );
     }
     int dcr_order_value(
         const std::string& name,
-        const std::string& id,
+        const std::string& obj_id,
         const std::string& key,
         int64_t value
     ) {
-        return dcr_order_value( manager::shared_group(), name, id, key, value );
+        return dcr_order_value( manager::shared_group(), name, obj_id, key, value );
     }
     int set_order_value(
         redis_connector_t rg,
         const std::string& name,
-        const std::string& id,
+        const std::string& obj_id,
         const std::string& key,
         int64_t value
     ) {
@@ -857,29 +888,29 @@ namespace dhboc { namespace redis {
         if ( !_kit->second.ordered ) return 3;
 
         patch_object(rg, name, {
-            {"id", id},
+            {"id", obj_id},
             {key, std::to_string(value)}
         });
         return 0;
     }
     int set_order_value(
         const std::string& name,
-        const std::string& id,
+        const std::string& obj_id,
         const std::string& key,
         int64_t value
     ) {
-        return set_order_value( manager::shared_group(), name, id, key, value );
+        return set_order_value( manager::shared_group(), name, obj_id, key, value );
     }
 
     int tag_object(
         redis_connector_t rg,
         const std::string& name,
-        const std::string& id,
+        const std::string& obj_id,
         const std::vector< std::string >& tags
     ) {
         for ( auto& t : tags ) {
             // Item not existed, ignore all rest tags
-            if ( 1 == tag_object(rg, name, id, t) ) {
+            if ( 1 == tag_object(rg, name, obj_id, t) ) {
                 return 1;
             }
         }
@@ -887,79 +918,79 @@ namespace dhboc { namespace redis {
     }
     int tag_object(
         const std::string& name,
-        const std::string& id,
+        const std::string& obj_id,
         const std::vector< std::string >& tags
     ) {
-        return tag_object(manager::shared_group(), name, id, tags);
+        return tag_object(manager::shared_group(), name, obj_id, tags);
     }
     int tag_object(
         redis_connector_t rg,
         const std::string& name,
-        const std::string& id,
+        const std::string& obj_id,
         const std::string& tag
     ) {
-        auto _item = __get_item(rg, name, id);
+        auto _item = __get_item(rg, name, obj_id);
         if ( _item.isNull() ) return 1;
 
         std::string _tlid = "dhboc." + name + "." + tag + ".ids";
-        ignore_result(rg->query("ZADD", _tlid, time(NULL), id));
+        ignore_result(rg->query("ZADD", _tlid, time(NULL), obj_id));
         manager::send_notification(IDS_NOTIFICATION_KEY, _tlid);
-        rg->query("SADD", "dhboc." + name + "." + id + ".tags", tag);
+        rg->query("SADD", "dhboc." + name + "." + obj_id + ".tags", tag);
         return 0;
     }
 
     int tag_object(
         const std::string& name,
-        const std::string& id,
+        const std::string& obj_id,
         const std::string& tag
     ) {
-        return tag_object(manager::shared_group(), name, id, tag);
+        return tag_object(manager::shared_group(), name, obj_id, tag);
     }
     int untag_object(
         redis_connector_t rg,
         const std::string& name,
-        const std::string& id,
+        const std::string& obj_id,
         const std::vector< std::string >& tags
     ) {
         for ( auto& t : tags ) {
             // Item not existed, ignore all rest tags
-            untag_object(rg, name, id, t);
+            untag_object(rg, name, obj_id, t);
         }
         return 0;
     }
     int untag_object(
         const std::string& name,
-        const std::string& id,
+        const std::string& obj_id,
         const std::vector< std::string >& tags
     ) {
-        return untag_object(manager::shared_group(), name, id, tags);
+        return untag_object(manager::shared_group(), name, obj_id, tags);
     }
     int untag_object(
         redis_connector_t rg,
         const std::string& name,
-        const std::string& id,
+        const std::string& obj_id,
         const std::string& tag
     ) {
         std::string _tlid = "dhboc." + name + "." + tag + ".ids";
-        auto _r = rg->query("ZREM", _tlid, id);
+        auto _r = rg->query("ZREM", _tlid, obj_id);
         if ( _r[0].content == "0" ) return 1;
         manager::send_notification(IDS_NOTIFICATION_KEY, _tlid);
-        rg->query("SREM", "dhboc." + name + "." + id + ".tags", tag);
+        rg->query("SREM", "dhboc." + name + "." + obj_id + ".tags", tag);
         return 0;
     }
     int untag_object(
         const std::string& name,
-        const std::string& id,
+        const std::string& obj_id,
         const std::string& tag
     ) {
-        return untag_object(manager::shared_group(), name, id, tag);
+        return untag_object(manager::shared_group(), name, obj_id, tag);
     }
     std::vector< std::string > get_tags(
         redis_connector_t rg,
         const std::string& name,
-        const std::string& id
+        const std::string& obj_id
     ) {
-        auto _r = rg->query("SMEMBERS", "dhboc." + name + "." + id + ".tags");
+        auto _r = rg->query("SMEMBERS", "dhboc." + name + "." + obj_id + ".tags");
         std::vector< std::string > _tags;
         for ( auto& r : _r ) {
             _tags.push_back(r.content);
@@ -968,9 +999,9 @@ namespace dhboc { namespace redis {
     }
     std::vector< std::string > get_tags(
         const std::string& name,
-        const std::string& id
+        const std::string& obj_id
     ) {
-        return get_tags(manager::shared_group(), name, id);
+        return get_tags(manager::shared_group(), name, obj_id);
     }
     int taglist_count(
         redis_connector_t rg,

@@ -27,6 +27,9 @@ using namespace pe::co;
 #include "modules.h"
 #include "startup.h"
 #include "handler.h"
+#include <execinfo.h>
+#include <stdio.h>
+#include <stdlib.h>
 
 void server_worker( net::http_request& req ) {
     if ( utils::is_string_end(req.path(), "/") ) {
@@ -63,6 +66,9 @@ void server_worker( net::http_request& req ) {
         if ( app.code.find(CODE_500) != app.code.end() ) {
             _resp.load_file(app.webroot + app.code[CODE_500]);
         }
+        void * _stack[64];
+        size_t _ssize = backtrace(_stack, 64);
+        backtrace_symbols_fd(_stack, _ssize, STDERR_FILENO);
     }
 
     net::http_server::send_response(_resp);
