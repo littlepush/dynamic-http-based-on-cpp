@@ -218,8 +218,12 @@ int main( int argc, char* argv[] ) {
         return 2;
     }
 
+    // Go to the work path
+    std::string _work_path = utils::dirname(_startup);
+    chdir(_work_path.c_str());
+
     // Try to format the startup
-    _startup = utils::dirname(_startup) + utils::full_filename(_startup);
+    _startup = utils::full_filename(_startup);
     content_handlers::ignore_file(_startup);
     if ( _config_path.size() > 0 ) {
         _config_path = utils::dirname(_config_path) + utils::full_filename(_config_path);
