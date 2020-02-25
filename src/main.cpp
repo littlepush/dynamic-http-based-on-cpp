@@ -144,16 +144,23 @@ bool _dhboc_forever( const std::string& startup, bool force_rebuild ) {
     // Wait for all children to exit
     std::map< pid_t, task * > _pipe_cache;
     for ( auto& cp : _children_pmap ) {
-        _pipe_cache[cp.first] = loop::main.do_job(cp.second, []() {
+        pid_t _cpid = cp.first;
+        _pipe_cache[cp.first] = loop::main.do_job(cp.second, [&, _cpid]() {
             while ( true ) {
                 auto _sig = this_task::wait_for_event(
                     event_read, std::chrono::milliseconds(1000)
                 );
                 if ( _sig == no_signal ) continue;
-                if ( _sig == bad_signal ) break;
+                if ( _sig == bad_signal ) {
+                    _pipe_cache[_cpid] = NULL;
+                    break;
+                }
                 std::string _buf = std::forward< std::string >(pipe_read(this_task::get_id()));
                 // Pipe closed
-                if ( _buf.size() == 0 ) break;
+                if ( _buf.size() == 0 ) {
+                    _pipe_cache[_cpid] = NULL;
+                    break;
+                }
                 std::cout << _buf;
             }
         });
@@ -161,9 +168,17 @@ bool _dhboc_forever( const std::string& startup, bool force_rebuild ) {
 
     // Check if content has been changed
     loop::main.do_loop([&]() {
-        if ( !content_handlers::content_changed() ) return;
+        bool _all_correct = true;
+        if ( content_handlers::content_changed() ) _all_correct = false;
+        for ( auto& cp : _pipe_cache ) {
+            if ( cp.second == NULL ) {
+                _all_correct = false;
+                break;
+            }
+        }
+        if ( _all_correct == true ) return;
         // Auto quit
-        std::cout << "content changed, send kill signal" << std::endl;
+        std::cout << "something has been changed, send kill signal" << std::endl;
         for ( auto& c : _children_pmap ) {
             std::cout << "kill subprocess: " << c.first << std::endl;
             task_exit(_pipe_cache[c.first]);
