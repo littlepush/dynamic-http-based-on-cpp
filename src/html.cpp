@@ -119,8 +119,11 @@ namespace dhboc { namespace html {
             if ( pkv.second == false ) continue;
             ss << " " << pkv.first;
         }
-        ss << ">" << std::endl;
+        ss << ">";
         if ( ! raw_element_->auto_close ) return;
+        if ( children_.size() > 0 ) {
+            ss << std::endl;
+        }
         for ( auto& e : children_ ) {
             e._to_string(ss);
         }
