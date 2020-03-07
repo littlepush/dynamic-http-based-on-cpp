@@ -114,7 +114,7 @@ namespace dhboc { namespace redis {
     void manager::wait_schedule_task( schedule_t callback ) {
         ins().schedule_callback_ = callback;
         if ( ins().schedule_task_ != NULL ) return;
-        ins().schedule_task_ = loop::main.do_loop([]() {
+        ins().schedule_task_ = this_loop.do_loop([]() {
             // Fetch tasks until now
             time_t _now = time(NULL);
             auto _r = manager::query("ZRANGEBYSCORE", "dhboc.__schedule__.__task__", "-inf", _now);

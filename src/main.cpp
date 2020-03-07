@@ -135,15 +135,15 @@ bool _dhboc_forever( const std::string& startup, bool force_rebuild ) {
         // the child exit, the pipe will also been closed.
         child_dup_for_read(_c2p_out, STDOUT_FILENO);
 
-        loop::main.do_job([&]() {
+        this_loop.do_job([&]() {
             startupmgr::worker_initialization(i);
             content_handlers::load_handlers();
 
-            loop::main.do_job(_lso, []() {
+            this_loop.do_job(_lso, []() {
                 net::http_server::listen( &server_worker );
             });
         });
-        loop::main.run();
+        this_loop.run();
         return true;  // Im a child process, no need to fork again.
     }
 
@@ -151,7 +151,7 @@ bool _dhboc_forever( const std::string& startup, bool force_rebuild ) {
     std::map< pid_t, task * > _pipe_cache;
     for ( auto& cp : _children_pmap ) {
         pid_t _cpid = cp.first;
-        _pipe_cache[cp.first] = loop::main.do_job(cp.second, [&, _cpid]() {
+        _pipe_cache[cp.first] = this_loop.do_job(cp.second, [&, _cpid]() {
             while ( true ) {
                 auto _sig = this_task::wait_for_event(
                     event_read, std::chrono::milliseconds(1000)
@@ -173,7 +173,7 @@ bool _dhboc_forever( const std::string& startup, bool force_rebuild ) {
     }
 
     // Check if content has been changed
-    loop::main.do_loop([&]() {
+    this_loop.do_loop([&]() {
         bool _all_correct = true;
         if ( content_handlers::content_changed() ) _all_correct = false;
         for ( auto& cp : _pipe_cache ) {
@@ -195,7 +195,7 @@ bool _dhboc_forever( const std::string& startup, bool force_rebuild ) {
         this_task::cancel_loop();
     }, std::chrono::seconds(1));
 
-    loop::main.run();
+    this_loop.run();
 
     // Close the listening socket
     ::close(_lso);
