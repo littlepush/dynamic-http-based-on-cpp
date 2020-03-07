@@ -210,6 +210,7 @@ bool content_handlers::format_source_code( const std::string& origin_file ) {
 bool content_handlers::content_changed( ) {
     for ( const auto& p : content_handlers::_s_().content_uptime_ ) {
         if ( p.second == utils::file_update_time(p.first) ) continue;
+        rlog::info << p.first << " has changed" << std::endl;
         return true;
     }
     return false;
