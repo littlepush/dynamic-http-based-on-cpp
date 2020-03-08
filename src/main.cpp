@@ -241,7 +241,7 @@ int main( int argc, char* argv[] ) {
 
     // Go to the work path
     std::string _work_path = utils::dirname(_startup);
-    chdir(_work_path.c_str());
+    ignore_result(chdir(_work_path.c_str()));
 
     // Try to format the startup
     _startup = utils::full_filename(_startup);
