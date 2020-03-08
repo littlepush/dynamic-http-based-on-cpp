@@ -16605,14 +16605,14 @@ ac_compiler_gnu=$ac_cv_c_compiler_gnu
 if test "x${prefix}" != "xNONE"; then :
 
     CPPFLAGS="-I${prefix}/include ${CPPFLAGS}"
-    LDFALGS="-L${prefix}/lib ${LDFALGS}"
+    LDFLAGS="-L${prefix}/lib ${LDFLAGS}"
 
 fi
 
 if test "x${libssl}" != "x"; then :
 
     CPPFLAGS="-I${libssl}/include ${CPPFLAGS}"
-    LDFLAGS="-L${libssl}/lib ${LDFALGS}"
+    LDFLAGS="-L${libssl}/lib ${LDFLAGS}"
 
 fi
 
@@ -16620,7 +16620,7 @@ already_has_libpeco_path="no"
 if test "x${libpeco}" != "x"; then :
 
     CPPFLAGS="-I${libpeco}/include/libpeco ${CPPFLAGS}"
-    LDFLAGS="-L${libpeco}/lib ${LDFALGS}"
+    LDFLAGS="-L${libpeco}/lib ${LDFLAGS}"
     already_has_libpeco_path="yes"
 
 fi

@@ -22,18 +22,18 @@ AC_CONFIG_SRCDIR([src/dhboc.h])
 
 AS_IF([test "x${prefix}" != "xNONE"], [
     CPPFLAGS="-I${prefix}/include ${CPPFLAGS}"
-    LDFALGS="-L${prefix}/lib ${LDFALGS}"
+    LDFLAGS="-L${prefix}/lib ${LDFLAGS}"
 ])
 
 AS_IF([test "x${libssl}" != "x"], [
     CPPFLAGS="-I${libssl}/include ${CPPFLAGS}"
-    LDFLAGS="-L${libssl}/lib ${LDFALGS}"
+    LDFLAGS="-L${libssl}/lib ${LDFLAGS}"
 ])
 
 already_has_libpeco_path="no"
 AS_IF([test "x${libpeco}" != "x"], [
     CPPFLAGS="-I${libpeco}/include/libpeco ${CPPFLAGS}"
-    LDFLAGS="-L${libpeco}/lib ${LDFALGS}"
+    LDFLAGS="-L${libpeco}/lib ${LDFLAGS}"
     already_has_libpeco_path="yes"
 ])
 
