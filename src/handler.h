@@ -51,6 +51,9 @@ class content_handlers {
     // Content update time
     std::map< std::string, time_t >         content_uptime_;
 
+    // Compile Flag
+    std::string                             compile_flag_;
+
     // Singleton
     content_handlers();
     static content_handlers& _s_();
@@ -60,6 +63,9 @@ public:
 
     // Append ignore files
     static void ignore_file( const std::string& ifile );
+
+    // Set default compile extra flags
+    static void set_compile_flag( const std::string& flags );
 
     // Scan the webroot to find all files
     static bool scan_webroot();

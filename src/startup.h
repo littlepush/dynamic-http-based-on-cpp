@@ -70,7 +70,10 @@ public:
     static const std::string& lib_path();
 
     // Load the startup file and initialize everything
-    static bool load_startup_file( const std::string& sf, bool force_rebuild = false );
+    static bool load_startup_file( 
+        const std::string& sf, 
+        const std::string& cxxflags, 
+        bool force_rebuild = false );
 
     // Initialize the worker process
     static bool worker_initialization( int index );

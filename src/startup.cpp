@@ -44,7 +44,7 @@ const std::string OBJ_EXT(".darwin.o");
 #else
 const std::string OBJ_EXT(".o");
 #endif
-const std::string CC_DEFINES("-DRELEASE=1 -g -O2");
+const std::string CC_DEFINES("-DRELEASE=1 -O3");
 #endif
 
 // All runtime paths
@@ -144,7 +144,10 @@ bool startupmgr::create_library(
 
 
 // Load the startup file and initialize everything
-bool startupmgr::load_startup_file( const std::string& sf, bool force_rebuild ) {
+bool startupmgr::load_startup_file( 
+    const std::string& sf, 
+    const std::string& cxxflags, 
+    bool force_rebuild ) {
     // Get the singleton object
     startupmgr& _s = startupmgr::_s_();
     // Initialize everything
@@ -224,9 +227,10 @@ bool startupmgr::load_startup_file( const std::string& sf, bool force_rebuild ) 
         }
 
         std::vector< std::string > _objs;
+        const char *_flag = ( cxxflags.size() > 0 ? cxxflags.c_str() : NULL );
         for ( const auto& s : _web_sources ) {
             std::string _o = startupmgr::object_dir() + utils::md5(s) + OBJ_EXT;
-            if ( ! startupmgr::compile_source(s, _o) ) {
+            if ( ! startupmgr::compile_source(s, _o, _flag) ) {
                 return false;
             }
             _objs.emplace_back(std::move(_o));

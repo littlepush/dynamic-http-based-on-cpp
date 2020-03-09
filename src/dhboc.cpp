@@ -40,8 +40,10 @@ Json::Value req_json( const http_request& req ) {
     std::string _b(std::forward< std::string >(req.body.raw()));
     Json::Value _root;
     if ( _b.size() == 0 ) return _root;
-    Json::Reader _reader;
-    _reader.parse(_b, _root, false);
+    std::string _error;
+    Json::CharReaderBuilder _builder;
+    std::unique_ptr< Json::CharReader > _reader(_builder.newCharReader());
+    _reader->parse(_b.c_str(), _b.c_str() + _b.size(), &_root, &_error);
     return _root;
 }
 
@@ -52,8 +54,11 @@ void make_response( http_response& resp, const Json::Value& body ) {
     _root["code"] = 0;
     _root["msg"] = "ok";
     _root["data"] = body;
-    Json::FastWriter _w;
-    resp.write(_w.write(_root));
+    Json::StreamWriterBuilder _builder;
+    std::unique_ptr< Json::StreamWriter > _w(_builder.newStreamWriter());
+    std::ostringstream _oss;
+    _w->write(_root, &_oss);
+    resp.write(_oss.str());
 }
 
 // Write Error Message in API
@@ -68,8 +73,12 @@ void return_error( http_response& resp, int code, const std::string& message ) {
     _root["code"] = code;
     _root["msg"] = message;
     _root["data"] = Json::Value(Json::objectValue);
-    Json::FastWriter _w;
-    resp.write(_w.write(_root));
+
+    Json::StreamWriterBuilder _builder;
+    std::unique_ptr< Json::StreamWriter > _w(_builder.newStreamWriter());
+    std::ostringstream _oss;
+    _w->write(_root, &_oss);
+    resp.write(_oss.str());
 }
 
 // Write Success Message
@@ -105,6 +114,22 @@ std::string dhboc_time_string( time_t t ) {
 // Use asctime to format the timestamp
 std::string dhboc_time_string( const std::string& ts ) {
     return dhboc_time_string( (time_t)std::stoi(ts) );
+}
+
+// Read Json Object From Data
+bool json_cpp_reader( const std::string& data, Json::Value& root ) {
+    Json::CharReaderBuilder _rbuilder;
+    std::unique_ptr< Json::CharReader > _jr(_rbuilder.newCharReader());
+    std::string _error;
+    return _jr->parse(data.c_str(), data.c_str() + data.size(), &root, &_error);
+}
+
+std::string json_cpp_write( const Json::Value& value ) {
+    Json::StreamWriterBuilder _builder;
+    std::unique_ptr< Json::StreamWriter > _w(_builder.newStreamWriter());
+    std::ostringstream _oss;
+    _w->write(value, &_oss);
+    return _oss.str();
 }
 
 // Push Chen

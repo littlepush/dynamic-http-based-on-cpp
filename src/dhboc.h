@@ -120,6 +120,11 @@ std::string dhboc_time_string( time_t t );
 // Use asctime to format the timestamp
 std::string dhboc_time_string( const std::string& ts );
 
+// Read Json Object From Data
+bool json_cpp_reader( const std::string& data, Json::Value& root );
+// Write json value to string
+std::string json_cpp_write( const Json::Value& value );
+
 #include "redismgr.h"
 #include "redisobj.h"
 #include "session.h"

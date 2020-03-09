@@ -79,10 +79,14 @@ void server_worker( net::http_request& req ) {
         << ", " << _time_used << "ms, pid: " << getpid() << std::endl;
 }
 
-bool _dhboc_forever( const std::string& startup, bool force_rebuild ) {
+bool _dhboc_forever( 
+    const std::string& startup, 
+    const std::string& cxxflags, 
+    bool force_rebuild 
+) {
     std::map< pid_t, int >      _children_pmap;
     // Reload startup manager
-    if ( ! startupmgr::load_startup_file(startup, force_rebuild) ) {
+    if ( ! startupmgr::load_startup_file(startup, cxxflags, force_rebuild) ) {
         std::cout << "load startup file failed" << std::endl;
         return false;
     }
@@ -207,6 +211,7 @@ int main( int argc, char* argv[] ) {
     std::string _config_path;
     bool _force_rebuild = false;
     bool _forever = false;
+    std::string _cxxflags;
     utils::argparser::set_parser("modules", "m", _config_path);
     utils::argparser::set_parser("rebuild", "r", [&_force_rebuild](std::string&&) {
         _force_rebuild = true;
@@ -214,6 +219,7 @@ int main( int argc, char* argv[] ) {
     utils::argparser::set_parser("forever", "f", [&_forever](std::string&&) {
         _forever = true;
     });
+    utils::argparser::set_parser("cxxflags", _cxxflags);
     utils::argparser::set_parser("version", "v", [](std::string&&) {
         std::cout << "DHBoC server, version: " << VERSION << std::endl;
         std::cout << "Copyright 2015-2019 Push Lab. All rights reserved." << std::endl;
@@ -244,7 +250,7 @@ int main( int argc, char* argv[] ) {
     ignore_result(chdir(_work_path.c_str()));
 
     // Try to format the startup
-    _startup = utils::full_filename(_startup);
+    _startup = "./" + utils::full_filename(_startup);
     content_handlers::ignore_file(_startup);
     if ( _config_path.size() > 0 ) {
         _config_path = utils::dirname(_config_path) + utils::full_filename(_config_path);
@@ -261,13 +267,18 @@ int main( int argc, char* argv[] ) {
         utils::argparser::clear();
     }
 
+    // Set compile flags
+    if ( _cxxflags.size() > 0 ) {
+        content_handlers::set_compile_flag(_cxxflags);
+    }
+
     bool _last_success = true;
     do {
         if ( !_last_success ) {
             // If last run is not success, wait for 10 seconds
             sleep(10);
         }
-        _last_success = _dhboc_forever(_startup, _force_rebuild);
+        _last_success = _dhboc_forever(_startup, _cxxflags, _force_rebuild);
         _force_rebuild = false;
     } while ( _forever );
 

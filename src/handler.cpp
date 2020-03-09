@@ -49,6 +49,10 @@ content_handlers::~content_handlers() {
 void content_handlers::ignore_file( const std::string& ifile ) {
     content_handlers::_s_().ignore_files_.push_back(ifile);
 }
+// Set default compile extra flags
+void content_handlers::set_compile_flag( const std::string& flags ) {
+    content_handlers::_s_().compile_flag_ = flags;
+}
 
 // Scan the webroot to find all files
 bool content_handlers::scan_webroot() {
@@ -69,6 +73,10 @@ bool content_handlers::scan_webroot() {
     // Add ignore file
     for ( auto& igf : _s_().ignore_files_ ) {
         app.exclude_path.push_back(igf);
+    }
+
+    for ( auto& ep : app.exclude_path ) {
+        std::cout << "exclude: " << ep << std::endl;
     }
 
     bool _source_code_ok = true;
@@ -197,7 +205,9 @@ bool content_handlers::format_source_code( const std::string& origin_file ) {
     }
 
     std::string _obj = startupmgr::object_dir() + utils::md5(_path) + OBJ_EXT;
-    if ( startupmgr::compile_source(_output, _obj) ) {
+    const char *_flag = ( content_handlers::_s_().compile_flag_.size() > 0 ? 
+        content_handlers::_s_().compile_flag_.c_str() : NULL);
+    if ( startupmgr::compile_source(_output, _obj, _flag) ) {
         // Register the handler list
         content_handlers::_s_().handler_names_[_path] = "__" + utils::md5(_path);
         content_handlers::_s_().objs_.emplace_back(std::move(_obj));
