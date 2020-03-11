@@ -82,9 +82,9 @@ void server_worker( net::http_request& req ) {
 bool _dhboc_forever( 
     const std::string& startup, 
     const std::string& cxxflags, 
-    bool force_rebuild 
+    bool force_rebuild,
+    bool monitor_mode
 ) {
-    std::map< pid_t, int >      _children_pmap;
     // Reload startup manager
     if ( ! startupmgr::load_startup_file(startup, cxxflags, force_rebuild) ) {
         std::cout << "load startup file failed" << std::endl;
@@ -118,92 +118,109 @@ bool _dhboc_forever(
         return false;
     }
 
-    // Create workers
-    for ( int i = 0; i < app.workers; ++i ) {
-        // Create pipe to child
-        int _c2p_out[2];
-        ignore_result(pipe(_c2p_out));
-        pid_t _pid = fork();
-        if ( _pid < 0 ) {
-            std::cerr << "failed to fork child process." << std::endl;
-            ::close(_c2p_out[0]); ::close(_c2p_out[1]);
-            return false;
-        }
-        if ( _pid > 0 ) {   // Success on create new worker
-            parent_pipe_for_read(_c2p_out);
-            // Store the read pipe
-            _children_pmap[_pid] = _c2p_out[PIPE_READ_FD];
-            continue;
-        }
-        // Bind self's out pipe to stdout, so when
-        // the child exit, the pipe will also been closed.
-        child_dup_for_read(_c2p_out, STDOUT_FILENO);
+    if ( monitor_mode ) {
+        std::map< pid_t, int >      _children_pmap;
+        // Create workers
+        for ( int i = 0; i < app.workers; ++i ) {
+            // Create pipe to child
+            int _c2p_out[2];
+            ignore_result(pipe(_c2p_out));
+            pid_t _pid = fork();
+            if ( _pid < 0 ) {
+                std::cerr << "failed to fork child process." << std::endl;
+                ::close(_c2p_out[0]); ::close(_c2p_out[1]);
+                return false;
+            }
+            if ( _pid > 0 ) {   // Success on create new worker
+                parent_pipe_for_read(_c2p_out);
+                // Store the read pipe
+                _children_pmap[_pid] = _c2p_out[PIPE_READ_FD];
+                continue;
+            }
+            // Bind self's out pipe to stdout, so when
+            // the child exit, the pipe will also been closed.
+            child_dup_for_read(_c2p_out, STDOUT_FILENO);
 
-        this_loop.do_job([&]() {
-            startupmgr::worker_initialization(i);
+            this_loop.do_job([&]() {
+                startupmgr::worker_initialization(i);
+                content_handlers::load_handlers();
+
+                this_loop.do_job(_lso, []() {
+                    net::http_server::listen( &server_worker );
+                });
+            });
+            this_loop.run();
+            return true;  // Im a child process, no need to fork again.
+        }
+
+        // Wait for all children to exit
+        std::map< pid_t, task_t > _pipe_cache;
+        for ( auto& cp : _children_pmap ) {
+            pid_t _cpid = cp.first;
+            _pipe_cache[cp.first] = this_loop.do_job(cp.second, [&, _cpid]() {
+                while ( true ) {
+                    auto _sig = this_task::wait_for_event(
+                        event_read, std::chrono::milliseconds(1000)
+                    );
+                    if ( _sig == no_signal ) continue;
+                    if ( _sig == bad_signal ) {
+                        _pipe_cache[_cpid] = NULL;
+                        break;
+                    }
+                    std::string _buf = std::forward< std::string >(pipe_read(this_task::get_id()));
+                    // Pipe closed
+                    if ( _buf.size() == 0 ) {
+                        _pipe_cache[_cpid] = NULL;
+                        break;
+                    }
+                    std::cout << _buf;
+                }
+            });
+        }
+
+        // Check if content has been changed
+        this_loop.do_loop([&]() {
+            bool _all_correct = true;
+            if ( content_handlers::content_changed() ) _all_correct = false;
+            for ( auto& cp : _pipe_cache ) {
+                if ( cp.second == NULL ) {
+                    _all_correct = false;
+                    break;
+                }
+            }
+            if ( _all_correct == true ) return;
+            // Auto quit
+            std::cout << "something has been changed, send kill signal" << std::endl;
+            for ( auto& c : _children_pmap ) {
+                std::cout << "kill subprocess: " << c.first << std::endl;
+                task_exit(_pipe_cache[c.first]);
+                kill( c.first, SIGTERM );
+                int _sig;
+                ignore_result(wait(&_sig));
+            }
+            this_task::cancel_loop();
+        }, std::chrono::seconds(1));
+
+        this_loop.run();
+
+        // Close the listening socket
+        ::close(_lso);
+        return true;
+    } else {
+        this_loop.do_job([]() {
+            startupmgr::worker_initialization(0);
             content_handlers::load_handlers();
 
             this_loop.do_job(_lso, []() {
                 net::http_server::listen( &server_worker );
             });
         });
+
         this_loop.run();
-        return true;  // Im a child process, no need to fork again.
+        // Don't need to close anything, the loop will automatically close it.
+        // We quit, because some error or signal, which is not success
+        return false;
     }
-
-    // Wait for all children to exit
-    std::map< pid_t, task_t > _pipe_cache;
-    for ( auto& cp : _children_pmap ) {
-        pid_t _cpid = cp.first;
-        _pipe_cache[cp.first] = this_loop.do_job(cp.second, [&, _cpid]() {
-            while ( true ) {
-                auto _sig = this_task::wait_for_event(
-                    event_read, std::chrono::milliseconds(1000)
-                );
-                if ( _sig == no_signal ) continue;
-                if ( _sig == bad_signal ) {
-                    _pipe_cache[_cpid] = NULL;
-                    break;
-                }
-                std::string _buf = std::forward< std::string >(pipe_read(this_task::get_id()));
-                // Pipe closed
-                if ( _buf.size() == 0 ) {
-                    _pipe_cache[_cpid] = NULL;
-                    break;
-                }
-                std::cout << _buf;
-            }
-        });
-    }
-
-    // Check if content has been changed
-    this_loop.do_loop([&]() {
-        bool _all_correct = true;
-        if ( content_handlers::content_changed() ) _all_correct = false;
-        for ( auto& cp : _pipe_cache ) {
-            if ( cp.second == NULL ) {
-                _all_correct = false;
-                break;
-            }
-        }
-        if ( _all_correct == true ) return;
-        // Auto quit
-        std::cout << "something has been changed, send kill signal" << std::endl;
-        for ( auto& c : _children_pmap ) {
-            std::cout << "kill subprocess: " << c.first << std::endl;
-            task_exit(_pipe_cache[c.first]);
-            kill( c.first, SIGTERM );
-            int _sig;
-            ignore_result(wait(&_sig));
-        }
-        this_task::cancel_loop();
-    }, std::chrono::seconds(1));
-
-    this_loop.run();
-
-    // Close the listening socket
-    ::close(_lso);
-    return true;
 }
 
 int main( int argc, char* argv[] ) {
@@ -222,11 +239,24 @@ int main( int argc, char* argv[] ) {
     utils::argparser::set_parser("cxxflags", _cxxflags);
     utils::argparser::set_parser("version", "v", [](std::string&&) {
         std::cout << "DHBoC server, version: " << VERSION << std::endl;
-        std::cout << "Copyright 2015-2019 Push Lab. All rights reserved." << std::endl;
+        std::cout << "Copyright Push Chen @littlepush. All rights reserved." << std::endl;
         std::cout << "Powered by Push Chen <littlepush@gmail.com>." << std::endl;
         exit(0);
     });
     utils::argparser::set_parser("help", "h", [](std::string&&) {
+        std::cout
+            << "dhboc [startup file]" << std::endl
+            << "dhboc [-f] [-r] [-m=<module file>] [--cxxflags=...]" << std::endl
+            << "dhboc -v" << std::endl
+            << "dhboc -h" << std::endl
+            << std::endl
+            << "--forever,-f        Fork child process and monitor on file change, "
+            << "                    auto restart. Default is single process mode." << std::endl
+            << "--rebuild,-r        Rebuild all file before startup." << std::endl
+            << "--modules,-m        External modules file path." << std::endl
+            << "--help,-h           Display this message." << std::endl
+            << "--version,-v        Display version information." << std::endl
+            << std::endl;
 
         exit(0);
     });
@@ -275,10 +305,10 @@ int main( int argc, char* argv[] ) {
     bool _last_success = true;
     do {
         if ( !_last_success ) {
-            // If last run is not success, wait for 10 seconds
-            sleep(10);
+            // If last run is not success, wait for 3 seconds
+            sleep(3);
         }
-        _last_success = _dhboc_forever(_startup, _cxxflags, _force_rebuild);
+        _last_success = _dhboc_forever(_startup, _cxxflags, _force_rebuild, _forever);
         _force_rebuild = false;
     } while ( _forever );
 
