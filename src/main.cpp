@@ -207,7 +207,7 @@ bool _dhboc_forever(
         ::close(_lso);
         return true;
     } else {
-        this_loop.do_job([]() {
+        this_loop.do_job([&]() {
             startupmgr::worker_initialization(0);
             content_handlers::load_handlers();
 
