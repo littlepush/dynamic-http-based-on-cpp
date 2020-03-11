@@ -245,18 +245,19 @@ int main( int argc, char* argv[] ) {
     });
     utils::argparser::set_parser("help", "h", [](std::string&&) {
         std::cout
-            << "dhboc [startup file]" << std::endl
-            << "dhboc [-f] [-r] [-m=<module file>] [--cxxflags=...]" << std::endl
-            << "dhboc -v" << std::endl
-            << "dhboc -h" << std::endl
-            << std::endl
-            << "--forever,-f        Fork child process and monitor on file change, "
-            << "                    auto restart. Default is single process mode." << std::endl
-            << "--rebuild,-r        Rebuild all file before startup." << std::endl
-            << "--modules,-m        External modules file path." << std::endl
-            << "--help,-h           Display this message." << std::endl
-            << "--version,-v        Display version information." << std::endl
-            << std::endl;
+            << "Usage:"
+            << "  dhboc [startup file]" << std::endl
+            << "  dhboc [-f] [-r] [-m=<module file>] [--cxxflags=...]" << std::endl
+            << "  dhboc -v" << std::endl
+            << "  dhboc -h" << std::endl
+            << "Options: " << std::endl
+            << "  --forever,-f        Fork child process and monitor on file change, " << std::endl
+            << "                       auto restart. Default is single process mode." << std::endl
+            << "  --rebuild,-r        Rebuild all file before startup." << std::endl
+            << "  --modules,-m        External modules file path." << std::endl
+            << "  --help,-h           Display this message." << std::endl
+            << "  --version,-v        Display version information." << std::endl
+            << "Powered by Push Chen <littlepush@gmail.com>." << std::endl;
 
         exit(0);
     });
