@@ -28,12 +28,12 @@ namespace dhboc { namespace redis {
     // Redis Manager
     class manager {
         redis_connector_t                           rgroup_;
-        task *                                      notify_sub_;
+        task_t                                      notify_sub_;
         std::map< std::string, notification_t >     notification_map_;
-        task *                                      expire_sub_;
+        task_t                                      expire_sub_;
         std::map< std::string, expire_t >           expire_map_;
         notification_t                              all_exp_;
-        task *                                      schedule_task_;
+        task_t                                      schedule_task_;
         schedule_t                                  schedule_callback_;
     protected: 
         // Singleton

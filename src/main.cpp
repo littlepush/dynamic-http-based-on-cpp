@@ -152,7 +152,7 @@ bool _dhboc_forever(
     }
 
     // Wait for all children to exit
-    std::map< pid_t, task * > _pipe_cache;
+    std::map< pid_t, task_t > _pipe_cache;
     for ( auto& cp : _children_pmap ) {
         pid_t _cpid = cp.first;
         _pipe_cache[cp.first] = this_loop.do_job(cp.second, [&, _cpid]() {
