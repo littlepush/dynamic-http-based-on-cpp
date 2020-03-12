@@ -31,6 +31,8 @@ using namespace pe::co;
 #include <stdio.h>
 #include <stdlib.h>
 
+bool __static_cache__ = true;
+
 void server_worker( net::http_request& req ) {
     if ( utils::is_string_end(req.path(), "/") ) {
         req.path() += "index.html";
@@ -44,6 +46,10 @@ void server_worker( net::http_request& req ) {
             if ( ! content_handlers::try_find_handler(req, _resp) ) {
                 // else _resp.load_file(req.path());
                 _resp.load_file(app.webroot + req.path());
+                // For any static file, default to add a one day cache
+                if ( __static_cache__ ) {
+                    _resp.header["Cache-Control"] = "max-age=86400";
+                }
             }
             if ( _resp.status_code != CODE_200 ) {
                 _pcode = _resp.status_code;
@@ -237,6 +243,12 @@ int main( int argc, char* argv[] ) {
         _forever = true;
     });
     utils::argparser::set_parser("cxxflags", _cxxflags);
+    utils::argparser::set_parser("enable-static-cache", [](std::string&&) {
+        __static_cache__ = true;
+    });
+    utils::argparser::set_parser("disable-static-cache", [](std::string&&) {
+        __static_cache__ = false;
+    });
     utils::argparser::set_parser("version", "v", [](std::string&&) {
         std::cout << "DHBoC server, version: " << VERSION << std::endl;
         std::cout << "Copyright Push Chen @littlepush. All rights reserved." << std::endl;
@@ -248,6 +260,7 @@ int main( int argc, char* argv[] ) {
             << "Usage:"
             << "  dhboc [startup file]" << std::endl
             << "  dhboc [-f] [-r] [-m=<module file>] [--cxxflags=...]" << std::endl
+            << "  dhboc --[enable|disable]-static-cache" << std::endl
             << "  dhboc -v" << std::endl
             << "  dhboc -h" << std::endl
             << "Options: " << std::endl
@@ -255,6 +268,9 @@ int main( int argc, char* argv[] ) {
             << "                       auto restart. Default is single process mode." << std::endl
             << "  --rebuild,-r        Rebuild all file before startup." << std::endl
             << "  --modules,-m        External modules file path." << std::endl
+            << "  --[enable/disable]-static-cache" << std::endl
+            << "                      Enable or disable default static file cache." << std::endl
+            << "                      Default is enabled." << std::endl
             << "  --help,-h           Display this message." << std::endl
             << "  --version,-v        Display version information." << std::endl
             << "Powered by Push Chen <littlepush@gmail.com>." << std::endl;
