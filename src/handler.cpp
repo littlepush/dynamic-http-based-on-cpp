@@ -10,6 +10,7 @@
 #include "handler.h"
 #include <dlfcn.h>
 #include <regex>
+#include "template.h"
 
 static std::map< std::string, bool > g_ctnt_ext = {
     {"cpp", true},
@@ -52,6 +53,7 @@ void content_handlers::ignore_file( const std::string& ifile ) {
 // Set default compile extra flags
 void content_handlers::set_compile_flag( const std::string& flags ) {
     content_handlers::_s_().compile_flag_ = flags;
+    content_template::set_compile_flag( flags );
 }
 
 // Scan the webroot to find all files
@@ -121,6 +123,18 @@ bool content_handlers::scan_webroot() {
             return true;
         }
     );
+
+    if ( _source_code_ok ) {
+        _source_code_ok = content_template::scan_templates();
+        if ( _source_code_ok == true ) {
+            // Combine the objects
+            content_handlers::_s_().objs_.insert(
+                content_handlers::_s_().objs_.begin(),
+                content_template::get_template_objs().begin(),
+                content_template::get_template_objs().end()
+                );
+        }
+    }
     return _source_code_ok;
 }
 
@@ -141,7 +155,7 @@ bool content_handlers::format_source_code( const std::string& origin_file ) {
         _ofs << "extern \"C\"{" << std::endl;
         _ofs << "void __" << utils::md5(_path)
             << "(const http_request& req, http_response& resp) {" << std::endl;
-        // _ofs << "    resp.body.is_chunked = true;" << std::endl;
+        _ofs << "    resp.body.is_chunked = true;" << std::endl;
         std::string _piece_prefix = utils::md5(_path);
 
         // Load code
@@ -223,7 +237,7 @@ bool content_handlers::content_changed( ) {
         rlog::info << p.first << " has changed" << std::endl;
         return true;
     }
-    return false;
+    return content_template::content_changed();
 }
 
 // Create handler lib
@@ -285,6 +299,9 @@ void content_handlers::load_handlers() {
             r.method, r.handler, std::regex(r.match_rule)
         });
     }
+
+    // Load templates
+    content_template::init_template(_cs.mh_);
 }
 
 // Try to search the handler and run

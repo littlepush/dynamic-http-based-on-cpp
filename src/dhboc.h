@@ -22,6 +22,12 @@ using namespace pe::co::net::proto;
 
 typedef void (*http_handler)(const net::http_request&, net::http_response&);
 
+typedef std::function< void () >                        placehold_callback_t;
+typedef std::map< std::string, placehold_callback_t >   placeholds_t;
+
+// A template handler function point
+typedef void (*template_handler_t)(const http_request&, http_response&, const placeholds_t&);
+
 struct router_t {
     std::string                 method;
     std::string                 match_rule;
@@ -124,6 +130,18 @@ std::string dhboc_time_string( const std::string& ts );
 bool json_cpp_reader( const std::string& data, Json::Value& root );
 // Write json value to string
 std::string json_cpp_write( const Json::Value& value );
+
+// Invoke template
+void apply_template(
+    const http_request& req, http_response& resp, 
+    const std::string& template_name, const placeholds_t& ph);
+
+#define __UNIQUE_VAR__(x, y)        x##y
+#define __uv__(x, y)                __UNIQUE_VAR__(x, y)
+#define __SET_PLACEHOLD(n)                  \
+    auto __uv__(__ph, __LINE__) = ph.find(n);  \
+    if ( __uv__(__ph, __LINE__) != ph.end() )  \
+        __uv__(__ph, __LINE__)->second()
 
 #include "redismgr.h"
 #include "redisobj.h"

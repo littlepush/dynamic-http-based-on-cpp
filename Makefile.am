@@ -10,6 +10,7 @@ libdhboc_la_SOURCES = \
 	src/modules.cpp \
 	src/startup.cpp \
 	src/handler.cpp \
+	src/template.cpp \
 	src/dhboc.cpp \
 	src/redismgr.cpp \
 	src/redisobj.cpp \
@@ -21,6 +22,7 @@ pkginclude_HEADERS = \
 	src/modules.h \
 	src/startup.h \
 	src/handler.h \
+	src/template.h \
 	src/redismgr.h \
 	src/redisobj.h \
 	src/session.h \

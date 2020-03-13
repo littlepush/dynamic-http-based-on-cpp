@@ -137,8 +137,8 @@ LTLIBRARIES = $(lib_LTLIBRARIES)
 libdhboc_la_LIBADD =
 am__dirstamp = $(am__leading_dot)dirstamp
 am_libdhboc_la_OBJECTS = src/modules.lo src/startup.lo src/handler.lo \
-	src/dhboc.lo src/redismgr.lo src/redisobj.lo src/session.lo \
-	src/html.lo
+	src/template.lo src/dhboc.lo src/redismgr.lo src/redisobj.lo \
+	src/session.lo src/html.lo
 libdhboc_la_OBJECTS = $(am_libdhboc_la_OBJECTS)
 AM_V_lt = $(am__v_lt_@AM_V@)
 am__v_lt_ = $(am__v_lt_@AM_DEFAULT_V@)
@@ -166,7 +166,8 @@ am__depfiles_remade = src/$(DEPDIR)/dhboc.Plo \
 	src/$(DEPDIR)/handler.Plo src/$(DEPDIR)/html.Plo \
 	src/$(DEPDIR)/main.Po src/$(DEPDIR)/modules.Plo \
 	src/$(DEPDIR)/redismgr.Plo src/$(DEPDIR)/redisobj.Plo \
-	src/$(DEPDIR)/session.Plo src/$(DEPDIR)/startup.Plo
+	src/$(DEPDIR)/session.Plo src/$(DEPDIR)/startup.Plo \
+	src/$(DEPDIR)/template.Plo
 am__mv = mv -f
 CXXCOMPILE = $(CXX) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) \
 	$(AM_CPPFLAGS) $(CPPFLAGS) $(AM_CXXFLAGS) $(CXXFLAGS)
@@ -376,6 +377,7 @@ libdhboc_la_SOURCES = \
 	src/modules.cpp \
 	src/startup.cpp \
 	src/handler.cpp \
+	src/template.cpp \
 	src/dhboc.cpp \
 	src/redismgr.cpp \
 	src/redisobj.cpp \
@@ -387,6 +389,7 @@ pkginclude_HEADERS = \
 	src/modules.h \
 	src/startup.h \
 	src/handler.h \
+	src/template.h \
 	src/redismgr.h \
 	src/redisobj.h \
 	src/session.h \
@@ -526,6 +529,7 @@ src/$(DEPDIR)/$(am__dirstamp):
 src/modules.lo: src/$(am__dirstamp) src/$(DEPDIR)/$(am__dirstamp)
 src/startup.lo: src/$(am__dirstamp) src/$(DEPDIR)/$(am__dirstamp)
 src/handler.lo: src/$(am__dirstamp) src/$(DEPDIR)/$(am__dirstamp)
+src/template.lo: src/$(am__dirstamp) src/$(DEPDIR)/$(am__dirstamp)
 src/dhboc.lo: src/$(am__dirstamp) src/$(DEPDIR)/$(am__dirstamp)
 src/redismgr.lo: src/$(am__dirstamp) src/$(DEPDIR)/$(am__dirstamp)
 src/redisobj.lo: src/$(am__dirstamp) src/$(DEPDIR)/$(am__dirstamp)
@@ -557,6 +561,7 @@ distclean-compile:
 @AMDEP_TRUE@@am__include@ @am__quote@src/$(DEPDIR)/redisobj.Plo@am__quote@ # am--include-marker
 @AMDEP_TRUE@@am__include@ @am__quote@src/$(DEPDIR)/session.Plo@am__quote@ # am--include-marker
 @AMDEP_TRUE@@am__include@ @am__quote@src/$(DEPDIR)/startup.Plo@am__quote@ # am--include-marker
+@AMDEP_TRUE@@am__include@ @am__quote@src/$(DEPDIR)/template.Plo@am__quote@ # am--include-marker
 
 $(am__depfiles_remade):
 	@$(MKDIR_P) $(@D)
@@ -901,6 +906,7 @@ distclean: distclean-am
 	-rm -f src/$(DEPDIR)/redisobj.Plo
 	-rm -f src/$(DEPDIR)/session.Plo
 	-rm -f src/$(DEPDIR)/startup.Plo
+	-rm -f src/$(DEPDIR)/template.Plo
 	-rm -f Makefile
 distclean-am: clean-am distclean-compile distclean-generic \
 	distclean-libtool distclean-tags
@@ -957,6 +963,7 @@ maintainer-clean: maintainer-clean-am
 	-rm -f src/$(DEPDIR)/redisobj.Plo
 	-rm -f src/$(DEPDIR)/session.Plo
 	-rm -f src/$(DEPDIR)/startup.Plo
+	-rm -f src/$(DEPDIR)/template.Plo
 	-rm -f Makefile
 maintainer-clean-am: distclean-am maintainer-clean-generic
 

@@ -9,6 +9,7 @@
 
 #include "dhboc.h"
 #include "handler.h"
+#include "template.h"
 #include <iomanip>
 
 // Global App Object
@@ -130,6 +131,13 @@ std::string json_cpp_write( const Json::Value& value ) {
     std::ostringstream _oss;
     _w->write(value, &_oss);
     return _oss.str();
+}
+// Invoke template
+void apply_template(
+    const http_request& req, http_response& resp, 
+    const std::string& template_name, const placeholds_t& ph)
+{
+    content_template::apply_template(req, resp, template_name, ph);
 }
 
 // Push Chen
