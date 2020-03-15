@@ -12,7 +12,7 @@ using namespace pe;
 using namespace pe::co;
 
 #ifndef VERSION
-#define VERSION     "1.0.alpha"
+#define VERSION     "1.1.0"
 #endif
 
 #ifndef MAX_WORKERS
