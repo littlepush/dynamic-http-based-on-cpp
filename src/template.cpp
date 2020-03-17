@@ -9,7 +9,123 @@
 
 #include "template.h"
 #include <dlfcn.h>
+#include <hcml.hpp>
 
+bool __dhboc_hcml_is_tag(struct hcml_tag_t* t, const char* name) {
+    return (strncmp(t->data_string, name, t->dl) == 0);
+}
+
+struct hcml_prop_t* __dhboc_hcml_get_prop(struct hcml_tag_t *t, const char* name) {
+    struct hcml_prop_t * _p = t->p_root;
+    while ( _p != NULL ) {
+        if ( strncmp( _p->key, name, _p->kl ) == 0 ) break;
+        _p = _p->n_prop;
+    }
+    return _p;
+}
+
+bool __dhboc_hcml_single_tag( const char* name, int l ) {
+    std::string _s(name, l);
+    return ( _s == "input" || _s == "img" || _s == "br" || _s == "hr" );
+}
+
+// HCML Extend Tag Parser
+int content_template::hcml_tag_parser(
+    hcml_node_t *h, struct hcml_tag_t *root_tag, const char* suf
+) {
+    static int _placehold_index = 0;
+    int _err_code = 0;
+    auto _fp = hcml_set_lang_generator(h, NULL);
+    do {
+        auto _np = __dhboc_hcml_get_prop(root_tag, "name");
+        if ( _np == NULL ) {
+            _err_code = 1; break;
+        }
+        if ( __dhboc_hcml_is_tag(root_tag, "placeholder") ) {
+            if ( !hcml_append_code_format(h, "auto _ph%d = ph.find(\"%.*s\");\n", 
+                _placehold_index, _np->vl, _np->value)) {
+                _err_code = -1; break;
+            }
+            if ( !hcml_append_code_format(h, "if ( _ph%d != ph.end() ) _ph%d->second();\n", 
+                _placehold_index, _placehold_index)) {
+                _err_code = -1; break;
+            }
+            ++_placehold_index;
+        } else if ( __dhboc_hcml_is_tag(root_tag, "tag") ) {
+            if ( !hcml_append_code_format(h, "resp.write(\"<%.*s\", %d);\n", 
+                    _np->vl, _np->value, _np->vl + 1) ) {
+                _err_code = -1; break;
+            }
+            bool _has_inner_html = false;
+            bool _has_prop_tag = false;
+            if ( root_tag->c_tag != NULL ) {
+                // Check if we have non-prop tag, and prop tag after non-prop one
+                auto _ct = root_tag->c_tag;
+                while ( _ct != NULL ) {
+                    if ( __dhboc_hcml_is_tag(_ct, "prop") ) {
+                        _has_prop_tag = true;
+                        if ( _has_inner_html ) {
+                            // Error Here, we already has inner html
+                            _err_code = 2; break;
+                        }
+                    } else {
+                        _has_inner_html = true;
+                    }
+                    _ct = _ct->n_tag;
+                }
+                if ( _err_code != 0 ) break;
+                if ( !_has_prop_tag ) {
+                    hcml_append_code_format(h, "resp.write(\">\", 1);\n");
+                }
+
+                if ( HCML_ERR_OK != (*_fp)(h, root_tag->c_tag, NULL) ) {
+                    _err_code = -1; break;
+                }
+
+                if ( !__dhboc_hcml_single_tag(_np->value, _np->vl) ) {
+                    hcml_append_code_format(h, "resp.write(\"</%.*s>\", %d);\n", 
+                        _np->vl, _np->value, _np->vl + 3);
+                }
+            } else {
+                if ( __dhboc_hcml_single_tag(_np->value, _np->vl) ) {
+                    hcml_append_code_format(h, "resp.write(\">\", 1);\n");
+                } else {
+                    hcml_append_code_format(h, "resp.write(\"</%.*s>\", %d);\n", 
+                        _np->vl, _np->value, _np->vl + 3);
+                }
+            }
+        } else if ( __dhboc_hcml_is_tag(root_tag, "prop") ) {
+            hcml_append_code_format(h, "resp.write(\" %.*s=\\\"\", %d);\n", 
+                _np->vl, _np->value, _np->vl + 3);
+            if ( root_tag->c_tag == NULL ) {
+                _err_code = 3; break;
+            }
+            if ( HCML_ERR_OK != (*_fp)(h, root_tag->c_tag, NULL) ) {
+                _err_code = -1; break;
+            }
+            hcml_append_code_format(h, "resp.write(\"\\\"\", 1);\n");
+            if ( root_tag->n_tag == NULL || !__dhboc_hcml_is_tag(root_tag->n_tag, "prop") ) {
+                hcml_append_code_format(h, "resp.write(\">\", 1);\n");
+            }
+        } else if ( __dhboc_hcml_is_tag(root_tag, "template") ) {
+
+        } else if ( __dhboc_hcml_is_tag(root_tag, "content") ) {
+
+        } else {
+            hcml_set_error(h, HCML_ERR_ESYNTAX, "Syntax Error: Unknow tag: %.*s", 
+                root_tag->dl, root_tag->data_string);
+            break;
+        }
+    } while ( false );
+    if ( _err_code == 1 ) {
+        hcml_set_error(h, HCML_ERR_ESYNTAX, "Syntax Error: Missing property name");
+    } else if ( _err_code == 2 ) {
+        hcml_set_error(h, HCML_ERR_ESYNTAX, "Syntax Error: prop must at top");
+    } else if ( _err_code == 3 ) {
+        hcml_set_error(h, HCML_ERR_ESYNTAX, "Syntax Error: Missing content in prop");
+    }
+    return h->errcode;
+}
 
 /*
     Compile the whole web as a single content handler lib
@@ -75,65 +191,20 @@ bool content_template::format_source_code( const std::string& origin_file ) {
         _ofs << "void __" << utils::md5(_path)
             << "(const http_request& req, http_response& resp, const placeholds_t& ph) {" << std::endl;
         _ofs << "    resp.body.is_chunked = true;" << std::endl;
+        _ofs << "    resp.body.is_gzipped = true;" << std::endl;
         std::string _piece_prefix = utils::md5(_path);
 
-        // Load code
-        std::ifstream _ifs(origin_file);
-        std::string _code(
-            (std::istreambuf_iterator<char>(_ifs)), 
-            (std::istreambuf_iterator<char>())
-        );
-        _ifs.close();
-
-        size_t _le = 0;
-        size_t _pindex = 0;
-        while ( _le != std::string::npos && _le < _code.size() ) {
-            size_t _bpos = _code.find("{@", _le);
-            size_t _epos = _bpos;
-            if ( _bpos != std::string::npos ) {
-                _epos = _code.find("@}", _bpos);
-                if ( _epos == std::string::npos ) {
-                    std::cerr << "error code block, missing `@}`" << std::endl;
-                    std::cerr << "failed to format file: " << origin_file << std::endl;
-                    return false;
-                }
-            }
-            // We do find some code block after some html code
-            if ( _bpos > _le && _bpos != std::string::npos ) {
-                std::string _html = _code.substr(_le, _bpos - _le);
-
-                // Dump the html data to piece file
-                std::string _piece_name = _piece_prefix + "_" + std::to_string(_pindex);
-                _pindex += 1;
-                std::string _piece_path = startupmgr::piece_dir() + _piece_name;
-                std::ofstream _pfs(_piece_path);
-                _pfs << _html;
-                _pfs.close();
-
-                _ofs << "    resp.body.load_file(\"" + _piece_path + "\");" << std::endl;
-            }
-            // Till end of code, no more code block
-            if ( _bpos == std::string::npos && _le < _code.size() ) {
-                std::string _html = _code.substr(_le);
-                // Dump the html data to piece file
-                std::string _piece_name = _piece_prefix + "_" + std::to_string(_pindex);
-                _pindex += 1;
-                std::string _piece_path = startupmgr::piece_dir() + _piece_name;
-                std::ofstream _pfs(_piece_path);
-                _pfs << _html;
-                _pfs.close();
-
-                _ofs << "    resp.body.load_file(\"" + _piece_path + "\");" << std::endl;
-                break;
-            }
-            // Update _le
-            _le = _epos;
-            if ( _le != std::string::npos ) _le += 2;
-
-            // Now we should copy the code
-            _ofs << _code.substr(_bpos + 2, _epos - _bpos - 2) << std::endl;
+        hcml _h;
+        // All use default, excpet print method
+        _h.set_print_method("resp.write");
+        _h.set_exlang_generator(&content_template::hcml_tag_parser);
+        if ( ! _h.parse(origin_file) ) {
+            std::cerr << "Parse error, " << _h.errmsg() << std::endl;
+            return false;
         }
-
+        std::cout << "Result Size: " << _h.result_size() << std::endl;
+        std::cout << _h << std::endl;
+        _ofs << _h << std::endl;
         _ofs << "}}" << std::endl;        
     }
 

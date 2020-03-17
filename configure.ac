@@ -105,5 +105,9 @@ AC_LANG_POP(C++)
 AC_SUBST([DHBOC_CXXFLAGS], ${CPPFLAGS})
 AC_SUBST([DHBOC_LDFLAGS], ${LDFLAGS})
 
+AC_CHECK_LIB([hcml], [hcml_create], [], [
+    AC_MSG_FAILURE([could not find libhcml])
+])
+
 AC_CONFIG_FILES([Makefile])
 AC_OUTPUT

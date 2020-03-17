@@ -14,6 +14,7 @@
 
 #include "dhboc.h"
 #include "startup.h"
+#include "hcml.h"
 
 /*
     Compile the whole web as a single content handler lib
@@ -64,6 +65,11 @@ public:
     static void apply_template(
         const http_request& req, http_response& resp, 
         const std::string& template_name, const placeholds_t& ph);
+
+    // HCML Extend Tag Parser
+    static int hcml_tag_parser(
+        hcml_node_t *h, struct hcml_tag_t *root_tag, const char* suf
+    );
 };
 
 #endif 
