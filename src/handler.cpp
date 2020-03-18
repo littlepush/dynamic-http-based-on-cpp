@@ -11,6 +11,7 @@
 #include <dlfcn.h>
 #include <regex>
 #include "template.h"
+#include <hcml.hpp>
 
 static std::map< std::string, bool > g_ctnt_ext = {
     {"cpp", true},
@@ -156,65 +157,17 @@ bool content_handlers::format_source_code( const std::string& origin_file ) {
         _ofs << "void __" << utils::md5(_path)
             << "(const http_request& req, http_response& resp) {" << std::endl;
         _ofs << "    resp.body.is_chunked = true;" << std::endl;
+        _ofs << "    resp.body.is_gzipped = true;" << std::endl;
         std::string _piece_prefix = utils::md5(_path);
-
-        // Load code
-        std::ifstream _ifs(origin_file);
-        std::string _code(
-            (std::istreambuf_iterator<char>(_ifs)), 
-            (std::istreambuf_iterator<char>())
-        );
-        _ifs.close();
-
-        size_t _le = 0;
-        size_t _pindex = 0;
-        while ( _le != std::string::npos && _le < _code.size() ) {
-            size_t _bpos = _code.find("{@", _le);
-            size_t _epos = _bpos;
-            if ( _bpos != std::string::npos ) {
-                _epos = _code.find("@}", _bpos);
-                if ( _epos == std::string::npos ) {
-                    std::cerr << "error code block, missing `@}`" << std::endl;
-                    std::cerr << "failed to format file: " << origin_file << std::endl;
-                    return false;
-                }
-            }
-            // We do find some code block after some html code
-            if ( _bpos > _le && _bpos != std::string::npos ) {
-                std::string _html = _code.substr(_le, _bpos - _le);
-
-                // Dump the html data to piece file
-                std::string _piece_name = _piece_prefix + "_" + std::to_string(_pindex);
-                _pindex += 1;
-                std::string _piece_path = startupmgr::piece_dir() + _piece_name;
-                std::ofstream _pfs(_piece_path);
-                _pfs << _html;
-                _pfs.close();
-
-                _ofs << "    resp.body.load_file(\"" + _piece_path + "\");" << std::endl;
-            }
-            // Till end of code, no more code block
-            if ( _bpos == std::string::npos && _le < _code.size() ) {
-                std::string _html = _code.substr(_le);
-                // Dump the html data to piece file
-                std::string _piece_name = _piece_prefix + "_" + std::to_string(_pindex);
-                _pindex += 1;
-                std::string _piece_path = startupmgr::piece_dir() + _piece_name;
-                std::ofstream _pfs(_piece_path);
-                _pfs << _html;
-                _pfs.close();
-
-                _ofs << "    resp.body.load_file(\"" + _piece_path + "\");" << std::endl;
-                break;
-            }
-            // Update _le
-            _le = _epos;
-            if ( _le != std::string::npos ) _le += 2;
-
-            // Now we should copy the code
-            _ofs << _code.substr(_bpos + 2, _epos - _bpos - 2) << std::endl;
+        hcml _h;
+        // All use default, excpet print method
+        _h.set_print_method("resp.write");
+        _h.set_exlang_generator(&content_template::hcml_tag_parser);
+        if ( ! _h.parse(origin_file) ) {
+            std::cerr << _h.errmsg() << std::endl;
+            return false;
         }
-
+        _ofs << _h << std::endl;
         _ofs << "}}" << std::endl;        
     }
 

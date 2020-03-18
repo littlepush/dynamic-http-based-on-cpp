@@ -108,9 +108,32 @@ int content_template::hcml_tag_parser(
                 hcml_append_code_format(h, "resp.write(\">\", 1);\n");
             }
         } else if ( __dhboc_hcml_is_tag(root_tag, "template") ) {
-
+            auto _ct = root_tag->c_tag;
+            while ( _ct != NULL ) {
+                if ( !__dhboc_hcml_is_tag(_ct, "content") ) {
+                    _err_code = 4; break;
+                }
+                _ct = _ct->n_tag;
+            }
+            hcml_append_code_format(h, "apply_template(req, resp, \"%.*s\", {\n", 
+                _np->vl, _np->value);
+            if ( HCML_ERR_OK != (*_fp)(h, root_tag->c_tag, NULL) ) {
+                _err_code = -1; break;
+            }
+            hcml_append_code_format(h, "});");
         } else if ( __dhboc_hcml_is_tag(root_tag, "content") ) {
-
+            hcml_append_code_format(h, "{\"%.*s\", [&](){\n", _np->vl, _np->value);
+            if ( root_tag->c_tag != NULL ) {
+                if ( HCML_ERR_OK != (*_fp)(h, root_tag->c_tag, "\n") ) {
+                    _err_code = -1;
+                    break;
+                }
+            }
+            if ( root_tag->n_tag == NULL ) {
+                hcml_append_code_format(h, "}}\n");
+            } else {
+                hcml_append_code_format(h, "}},\n");
+            }
         } else {
             hcml_set_error(h, HCML_ERR_ESYNTAX, "Syntax Error: Unknow tag: %.*s", 
                 root_tag->dl, root_tag->data_string);
@@ -123,6 +146,8 @@ int content_template::hcml_tag_parser(
         hcml_set_error(h, HCML_ERR_ESYNTAX, "Syntax Error: prop must at top");
     } else if ( _err_code == 3 ) {
         hcml_set_error(h, HCML_ERR_ESYNTAX, "Syntax Error: Missing content in prop");
+    } else if ( _err_code == 4 ) {
+        hcml_set_error(h, HCML_ERR_ESYNTAX, "Syntax Error: template can only contains content tag");
     }
     return h->errcode;
 }
@@ -199,11 +224,9 @@ bool content_template::format_source_code( const std::string& origin_file ) {
         _h.set_print_method("resp.write");
         _h.set_exlang_generator(&content_template::hcml_tag_parser);
         if ( ! _h.parse(origin_file) ) {
-            std::cerr << "Parse error, " << _h.errmsg() << std::endl;
+            std::cerr << _h.errmsg() << std::endl;
             return false;
         }
-        std::cout << "Result Size: " << _h.result_size() << std::endl;
-        std::cout << _h << std::endl;
         _ofs << _h << std::endl;
         _ofs << "}}" << std::endl;        
     }
