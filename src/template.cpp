@@ -1,156 +1,37 @@
 /*
     template.cpp
-    Dynamic-Http-Based-On-Cpp
-    2020-03-12
     Dynamic HTTP Server by Cpp(DHSbC, Internal as DHBoC)
+    2020-03-12
+    Push Chen
+*/
 
-    Copyright 2015-2020 MeetU Infomation and Technology Inc. All rights reserved.
+/*
+MIT License
+
+Copyright (c) 2020 Push Chen
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
 */
 
 #include "template.h"
 #include <dlfcn.h>
-#include <hcml.hpp>
-
-bool __dhboc_hcml_is_tag(struct hcml_tag_t* t, const char* name) {
-    return (strncmp(t->data_string, name, t->dl) == 0);
-}
-
-struct hcml_prop_t* __dhboc_hcml_get_prop(struct hcml_tag_t *t, const char* name) {
-    struct hcml_prop_t * _p = t->p_root;
-    while ( _p != NULL ) {
-        if ( strncmp( _p->key, name, _p->kl ) == 0 ) break;
-        _p = _p->n_prop;
-    }
-    return _p;
-}
-
-bool __dhboc_hcml_single_tag( const char* name, int l ) {
-    std::string _s(name, l);
-    return ( _s == "input" || _s == "img" || _s == "br" || _s == "hr" );
-}
-
-// HCML Extend Tag Parser
-int content_template::hcml_tag_parser(
-    hcml_node_t *h, struct hcml_tag_t *root_tag, const char* suf
-) {
-    static int _placehold_index = 0;
-    int _err_code = 0;
-    auto _fp = hcml_set_lang_generator(h, NULL);
-    do {
-        auto _np = __dhboc_hcml_get_prop(root_tag, "name");
-        if ( _np == NULL ) {
-            _err_code = 1; break;
-        }
-        if ( __dhboc_hcml_is_tag(root_tag, "placeholder") ) {
-            if ( !hcml_append_code_format(h, "auto _ph%d = ph.find(\"%.*s\");\n", 
-                _placehold_index, _np->vl, _np->value)) {
-                _err_code = -1; break;
-            }
-            if ( !hcml_append_code_format(h, "if ( _ph%d != ph.end() ) _ph%d->second();\n", 
-                _placehold_index, _placehold_index)) {
-                _err_code = -1; break;
-            }
-            ++_placehold_index;
-        } else if ( __dhboc_hcml_is_tag(root_tag, "tag") ) {
-            if ( !hcml_append_code_format(h, "resp.write(\"<%.*s\", %d);\n", 
-                    _np->vl, _np->value, _np->vl + 1) ) {
-                _err_code = -1; break;
-            }
-            bool _has_inner_html = false;
-            bool _has_prop_tag = false;
-            if ( root_tag->c_tag != NULL ) {
-                // Check if we have non-prop tag, and prop tag after non-prop one
-                auto _ct = root_tag->c_tag;
-                while ( _ct != NULL ) {
-                    if ( __dhboc_hcml_is_tag(_ct, "prop") ) {
-                        _has_prop_tag = true;
-                        if ( _has_inner_html ) {
-                            // Error Here, we already has inner html
-                            _err_code = 2; break;
-                        }
-                    } else {
-                        _has_inner_html = true;
-                    }
-                    _ct = _ct->n_tag;
-                }
-                if ( _err_code != 0 ) break;
-                if ( !_has_prop_tag ) {
-                    hcml_append_code_format(h, "resp.write(\">\", 1);\n");
-                }
-
-                if ( HCML_ERR_OK != (*_fp)(h, root_tag->c_tag, NULL) ) {
-                    _err_code = -1; break;
-                }
-
-                if ( !__dhboc_hcml_single_tag(_np->value, _np->vl) ) {
-                    hcml_append_code_format(h, "resp.write(\"</%.*s>\", %d);\n", 
-                        _np->vl, _np->value, _np->vl + 3);
-                }
-            } else {
-                if ( __dhboc_hcml_single_tag(_np->value, _np->vl) ) {
-                    hcml_append_code_format(h, "resp.write(\">\", 1);\n");
-                } else {
-                    hcml_append_code_format(h, "resp.write(\"</%.*s>\", %d);\n", 
-                        _np->vl, _np->value, _np->vl + 3);
-                }
-            }
-        } else if ( __dhboc_hcml_is_tag(root_tag, "prop") ) {
-            hcml_append_code_format(h, "resp.write(\" %.*s=\\\"\", %d);\n", 
-                _np->vl, _np->value, _np->vl + 3);
-            if ( root_tag->c_tag == NULL ) {
-                _err_code = 3; break;
-            }
-            if ( HCML_ERR_OK != (*_fp)(h, root_tag->c_tag, NULL) ) {
-                _err_code = -1; break;
-            }
-            hcml_append_code_format(h, "resp.write(\"\\\"\", 1);\n");
-            if ( root_tag->n_tag == NULL || !__dhboc_hcml_is_tag(root_tag->n_tag, "prop") ) {
-                hcml_append_code_format(h, "resp.write(\">\", 1);\n");
-            }
-        } else if ( __dhboc_hcml_is_tag(root_tag, "template") ) {
-            auto _ct = root_tag->c_tag;
-            while ( _ct != NULL ) {
-                if ( !__dhboc_hcml_is_tag(_ct, "content") ) {
-                    _err_code = 4; break;
-                }
-                _ct = _ct->n_tag;
-            }
-            hcml_append_code_format(h, "apply_template(req, resp, \"%.*s\", {\n", 
-                _np->vl, _np->value);
-            if ( HCML_ERR_OK != (*_fp)(h, root_tag->c_tag, NULL) ) {
-                _err_code = -1; break;
-            }
-            hcml_append_code_format(h, "});");
-        } else if ( __dhboc_hcml_is_tag(root_tag, "content") ) {
-            hcml_append_code_format(h, "{\"%.*s\", [&](){\n", _np->vl, _np->value);
-            if ( root_tag->c_tag != NULL ) {
-                if ( HCML_ERR_OK != (*_fp)(h, root_tag->c_tag, "\n") ) {
-                    _err_code = -1;
-                    break;
-                }
-            }
-            if ( root_tag->n_tag == NULL ) {
-                hcml_append_code_format(h, "}}\n");
-            } else {
-                hcml_append_code_format(h, "}},\n");
-            }
-        } else {
-            hcml_set_error(h, HCML_ERR_ESYNTAX, "Syntax Error: Unknow tag: %.*s", 
-                root_tag->dl, root_tag->data_string);
-            break;
-        }
-    } while ( false );
-    if ( _err_code == 1 ) {
-        hcml_set_error(h, HCML_ERR_ESYNTAX, "Syntax Error: Missing property name");
-    } else if ( _err_code == 2 ) {
-        hcml_set_error(h, HCML_ERR_ESYNTAX, "Syntax Error: prop must at top");
-    } else if ( _err_code == 3 ) {
-        hcml_set_error(h, HCML_ERR_ESYNTAX, "Syntax Error: Missing content in prop");
-    } else if ( _err_code == 4 ) {
-        hcml_set_error(h, HCML_ERR_ESYNTAX, "Syntax Error: template can only contains content tag");
-    }
-    return h->errcode;
-}
+#include "hcmlex.h"
 
 /*
     Compile the whole web as a single content handler lib
@@ -222,7 +103,7 @@ bool content_template::format_source_code( const std::string& origin_file ) {
         hcml _h;
         // All use default, excpet print method
         _h.set_print_method("resp.write");
-        _h.set_exlang_generator(&content_template::hcml_tag_parser);
+        _h.set_exlang_generator(&dhboc::hcml_tag_parser);
         if ( ! _h.parse(origin_file) ) {
             std::cerr << _h.errmsg() << std::endl;
             return false;

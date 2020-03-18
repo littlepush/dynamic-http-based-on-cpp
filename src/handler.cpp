@@ -1,17 +1,39 @@
 /*
     handler.cpp
-    Dynamic-Http-Based-On-Cpp
-    2020-01-21
     Dynamic HTTP Server by Cpp(DHSbC, Internal as DHBoC)
+    2020-01-21
+    Push Chen
+*/
 
-    Copyright 2015-2020 MeetU Infomation and Technology Inc. All rights reserved.
+/*
+MIT License
+
+Copyright (c) 2020 Push Chen
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
 */
 
 #include "handler.h"
 #include <dlfcn.h>
 #include <regex>
 #include "template.h"
-#include <hcml.hpp>
+#include "hcmlex.h"
 
 static std::map< std::string, bool > g_ctnt_ext = {
     {"cpp", true},
@@ -82,10 +104,19 @@ bool content_handlers::scan_webroot() {
         std::cout << "exclude: " << ep << std::endl;
     }
 
-    bool _source_code_ok = true;
+    bool _source_code_ok = content_template::scan_templates();
+    // Combine the objects
+    content_handlers::_s_().objs_.insert(
+        content_handlers::_s_().objs_.begin(),
+        content_template::get_template_objs().begin(),
+        content_template::get_template_objs().end()
+        );
+    if ( !_source_code_ok ) return false;
+
+    std::vector< std::string > _files;
     utils::rek_scan_dir(
         startupmgr::webroot_dir(), 
-        [&_source_code_ok]( const std::string& p, bool d ) {
+        [&_files]( const std::string& p, bool d ) {
             // Omit any file/folder begin weith '_'
             if ( utils::filename(p)[0] == '_' ) return false;
 
@@ -117,25 +148,17 @@ bool content_handlers::scan_webroot() {
             // Update the time
             content_handlers::_s_().content_uptime_[p] = utils::file_update_time(p);
             if ( ! d ) {
-                if ( ! content_handlers::format_source_code(p) ) {
-                    _source_code_ok = false;
-                }
+                _files.push_back(p);
             }
             return true;
         }
     );
 
-    if ( _source_code_ok ) {
-        _source_code_ok = content_template::scan_templates();
-        if ( _source_code_ok == true ) {
-            // Combine the objects
-            content_handlers::_s_().objs_.insert(
-                content_handlers::_s_().objs_.begin(),
-                content_template::get_template_objs().begin(),
-                content_template::get_template_objs().end()
-                );
-        }
+    for ( auto& p : _files ) {
+        _source_code_ok = content_template::format_source_code(p);
+        if ( !_source_code_ok ) break;
     }
+    
     return _source_code_ok;
 }
 
@@ -162,7 +185,7 @@ bool content_handlers::format_source_code( const std::string& origin_file ) {
         hcml _h;
         // All use default, excpet print method
         _h.set_print_method("resp.write");
-        _h.set_exlang_generator(&content_template::hcml_tag_parser);
+        _h.set_exlang_generator(&dhboc::hcml_tag_parser);
         if ( ! _h.parse(origin_file) ) {
             std::cerr << _h.errmsg() << std::endl;
             return false;
