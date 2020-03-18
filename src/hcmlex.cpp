@@ -390,7 +390,7 @@ namespace dhboc {
         if ( _pdefault != NULL ) {
             __code("\"%.*s\"; }()", __pprop(_pdefault));
         } else {
-            __code("\"\"; }{}");
+            __code("\"\"; }()");
         }
         if ( _ptoint != NULL ) {
             __code(")");
