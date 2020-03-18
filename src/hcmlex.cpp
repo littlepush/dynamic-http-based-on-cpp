@@ -169,7 +169,7 @@ namespace dhboc {
 
     __TAG_PARSER__(prop) {
         __must_have_prop(t, name);
-        __code("resp.write(\" %.*s\", %d);\n", __pprop(_PROP(name)), _PROP(name)->vl + 3);
+        __code("resp.write(\" %.*s\", %d);\n", __pprop(_PROP(name)), _PROP(name)->vl);
         if ( __child_tag(t) == NULL ) {
             __error("Syntax Error: Invalidate cxx:prop, missing content");
         }
@@ -221,7 +221,7 @@ namespace dhboc {
         __single_parse(__child_tag(t));
         __code(") {\n");
 
-        __code("resp.write(\" %.*s\", %d);\n", __pprop(_PROP(name)), _PROP(name)->vl + 3);
+        __code("resp.write(\" %.*s\", %d);\n", __pprop(_PROP(name)), _PROP(name)->vl);
         if ( __child_tag(t) == NULL ) {
             __error("Syntax Error: Invalidate cxx:prop, missing content");
         }
