@@ -175,13 +175,24 @@ namespace dhboc {
         }
 
         int _cc = __child_tag_count(t);
+        if ( _cc > 0 ) {
+            __code("resp.write(");
+        }
         for ( int i = 0; i < _cc; ++i ) {
-            __single_parse(__child_tag_at_index(t, i));
+            auto _ct = __child_tag_at_index(t, i);
+            if ( _ct->is_tag == 0 ) {
+                // Pure String tag should not use default parser in prop
+                __code("\"%.*s\"", __ptag(_ct));
+            } else {
+                __single_parse(_ct);
+            }
             if ( i < (_cc - 1) ) {
                 __code(" + ");
             }
         }
-        __code(";");
+        if ( _cc > 0 ) {
+            __code(");");
+        }
 
         // Close the property value part
         __code("resp.write(\"\\\"\", 1);\n");
