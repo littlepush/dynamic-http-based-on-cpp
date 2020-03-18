@@ -133,7 +133,7 @@ namespace dhboc {
         if ( __child_tag(t) != NULL ) {
             auto _ct = __child_tag(t);
             while ( _ct != NULL ) {
-                if ( __tag_is(_ct, "prop") ) {
+                if ( __tag_is(_ct, "prop") || __tag_is(_ct, "prop_optional") ) {
                     _has_prop_tag = true;
                     if ( _has_inner_html ) {
                         __error("Syntax Error: cxx:prop cannot be placed after non-prop tag");
@@ -169,13 +169,14 @@ namespace dhboc {
 
     __TAG_PARSER__(prop) {
         __must_have_prop(t, name);
-        __code("resp.write(\" %.*s=\\\"\", %d);\n", __pprop(_PROP(name)), _PROP(name)->vl + 3);
+        __code("resp.write(\" %.*s\", %d);\n", __pprop(_PROP(name)), _PROP(name)->vl + 3);
         if ( __child_tag(t) == NULL ) {
             __error("Syntax Error: Invalidate cxx:prop, missing content");
         }
 
         int _cc = __child_tag_count(t);
         if ( _cc > 0 ) {
+            __code("resp.write(\"=\\\"\");");
             __code("resp.write(");
         }
         for ( int i = 0; i < _cc; ++i ) {
@@ -195,8 +196,69 @@ namespace dhboc {
         }
 
         // Close the property value part
-        __code("resp.write(\"\\\"\", 1);\n");
-        if ( __next_tag(t) == NULL || !__tag_is(__next_tag(t), "prop") ) {
+        if ( _cc > 0 ) {
+            __code("resp.write(\"\\\"\", 1);\n");
+        }
+        if ( 
+            __next_tag(t) == NULL || 
+            ( 
+                !__tag_is(__next_tag(t), "prop") && 
+                !__tag_is(__next_tag(t), "prop_optional") 
+            )
+        ) {
+            // Close parent tag
+            __code("resp.write(\">\", 1);\n");
+        }
+    }
+    __TAG_PARSER__(prop_optional) {
+        __must_have_prop(t, name);
+        int _cc = __child_tag_count(t);
+        if ( _cc == 0 ) {
+            __error("Syntax Error: cxx:prop_optional must contains at least 1 child");
+        }
+        // We use the first child as the condition expresion
+        __code("if ( ");
+        __single_parse(__child_tag(t));
+        __code(") {\n");
+
+        __code("resp.write(\" %.*s\", %d);\n", __pprop(_PROP(name)), _PROP(name)->vl + 3);
+        if ( __child_tag(t) == NULL ) {
+            __error("Syntax Error: Invalidate cxx:prop, missing content");
+        }
+
+        if ( _cc > 1 ) {
+            __code("resp.write(\"=\\\"\");");
+            __code("resp.write(");
+        }
+        for ( int i = 1; i < _cc; ++i ) {
+            auto _ct = __child_tag_at_index(t, i);
+            if ( _ct->is_tag == 0 ) {
+                // Pure String tag should not use default parser in prop
+                __code("\"%.*s\"", __ptag(_ct));
+            } else {
+                __single_parse(_ct);
+            }
+            if ( i < (_cc - 1) ) {
+                __code(" + ");
+            }
+        }
+        if ( _cc > 1 ) {
+            __code(");");
+        }
+
+        // Close the property value part
+        if ( _cc > 1 ) {
+            __code("resp.write(\"\\\"\", 1);\n");
+        }
+        __code("}\n");
+
+        if ( 
+            __next_tag(t) == NULL || 
+            ( 
+                !__tag_is(__next_tag(t), "prop") && 
+                !__tag_is(__next_tag(t), "prop_optional") 
+            )
+        ) {
             // Close parent tag
             __code("resp.write(\">\", 1);\n");
         }
@@ -459,6 +521,18 @@ namespace dhboc {
             __code(";");
         }
     }
+    __TAG_PARSER__(json_bool) {
+        auto _pvar = __get_prop(t, "var");
+        __must_have_prop(t, target);
+        __must_have_prop(t, key);
+        if ( _pvar != NULL ) {
+            __code("auto %.*s = ", __pprop(_pvar));
+        }
+        __code("%.*s[\"%.*s\"].asBool()", __pprop(_PROP(target)), __pprop(_PROP(key)));
+        if ( _pvar != NULL ) {
+            __code(";");
+        }
+    }
 
     #define __REG_TAG__(tag_name)               \
         {#tag_name, __parse_tag_##tag_name}
@@ -470,6 +544,7 @@ namespace dhboc {
         __REG_TAG__(placeholder),
         __REG_TAG__(tag),
         __REG_TAG__(prop),
+        __REG_TAG__(prop_optional),
         __REG_TAG__(template),
         __REG_TAG__(content),
         __REG_TAG__(params_check),
@@ -481,7 +556,8 @@ namespace dhboc {
         __REG_TAG__(redis_tag),
         __REG_TAG__(json_string),
         __REG_TAG__(json_int),
-        __REG_TAG__(json_number)
+        __REG_TAG__(json_number),
+        __REG_TAG__(json_bool)
     };
 
     // DHBoC HCML Extended Parser
