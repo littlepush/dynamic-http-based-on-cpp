@@ -105,13 +105,13 @@ bool content_handlers::scan_webroot() {
     }
 
     bool _source_code_ok = content_template::scan_templates();
+    if ( !_source_code_ok ) return false;
     // Combine the objects
     content_handlers::_s_().objs_.insert(
         content_handlers::_s_().objs_.begin(),
         content_template::get_template_objs().begin(),
         content_template::get_template_objs().end()
         );
-    if ( !_source_code_ok ) return false;
 
     std::vector< std::string > _files;
     utils::rek_scan_dir(
@@ -155,7 +155,7 @@ bool content_handlers::scan_webroot() {
     );
 
     for ( auto& p : _files ) {
-        _source_code_ok = content_template::format_source_code(p);
+        _source_code_ok = content_handlers::format_source_code(p);
         if ( !_source_code_ok ) break;
     }
     
@@ -228,7 +228,7 @@ bool content_handlers::build_handler_lib( ) {
             content_handlers::_s_().hlibpath_, 
             startupmgr::lib_path().c_str());
     }
-    return true;
+    return false;
 }
 
 // Load the handler in worker

@@ -533,6 +533,19 @@ namespace dhboc {
             __code(";");
         }
     }
+    __TAG_PARSER__(import) {
+        if ( __child_tag(t) == NULL ) {
+            __error("Syntax Error: Missing file in cxx:import");
+        }
+        __code("resp.body.load_file(");
+        if ( __child_tag(t)->is_tag == 0 ) {
+            // Pure String tag should not use default parser in prop
+            __code("\"%.*s\"", __ptag(__child_tag(t)));
+        } else {
+            __single_parse(__child_tag(t));
+        }
+        __code(");\n");
+    }
 
     #define __REG_TAG__(tag_name)               \
         {#tag_name, __parse_tag_##tag_name}
@@ -557,7 +570,8 @@ namespace dhboc {
         __REG_TAG__(json_string),
         __REG_TAG__(json_int),
         __REG_TAG__(json_number),
-        __REG_TAG__(json_bool)
+        __REG_TAG__(json_bool),
+        __REG_TAG__(import)
     };
 
     // DHBoC HCML Extended Parser
