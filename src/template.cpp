@@ -120,6 +120,9 @@ bool content_template::format_source_code( const std::string& origin_file ) {
         content_template::_s_().template_names_[_path] = "__" + utils::md5(_path);
         content_template::_s_().objs_.emplace_back(std::move(_obj));
         return true;
+    } else {
+        // Remove Output file because it's not correct
+        utils::fs_remove(_output);
     }
     return false;
 }
