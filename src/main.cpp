@@ -54,6 +54,8 @@ using namespace pe::co;
 #include <stdlib.h>
 
 bool __static_cache__ = true;
+bool __enable_chunked__ = true;
+bool __enable_gzip__ = true;
 
 void server_worker( net::http_request& req ) {
     if ( utils::is_string_end(req.path(), "/") ) {
@@ -61,6 +63,9 @@ void server_worker( net::http_request& req ) {
     }
     this_task::begin_tick();
     http_response _resp;
+    _resp.body.is_chunked = __enable_chunked__;
+    _resp.body.is_gzipped = __enable_gzip__;
+
     try {
         auto _pcode = startupmgr::pre_request(req);
         if ( _pcode == http::CODE_000 ) {
@@ -271,6 +276,18 @@ int main( int argc, char* argv[] ) {
     utils::argparser::set_parser("disable-static-cache", [](std::string&&) {
         __static_cache__ = false;
     });
+    utils::argparser::set_parser("enable-chunked", [](std::string&&) {
+        __enable_chunked__ = true;
+    });
+    utils::argparser::set_parser("disable-chunked", [](std::string&&) {
+        __enable_chunked__ = false;
+    });
+    utils::argparser::set_parser("enable-gzip", [](std::string&&) {
+        __enable_gzip__ = true;
+    });
+    utils::argparser::set_parser("disable-gzip", [](std::string&&) {
+        __enable_gzip__ = false;
+    });
     utils::argparser::set_parser("version", "v", [](std::string&&) {
         std::cout << "DHBoC server, version: " << VERSION << std::endl;
         std::cout << "Copyright Push Chen @littlepush. All rights reserved." << std::endl;
@@ -292,6 +309,12 @@ int main( int argc, char* argv[] ) {
             << "  --modules,-m        External modules file path." << std::endl
             << "  --[enable/disable]-static-cache" << std::endl
             << "                      Enable or disable default static file cache." << std::endl
+            << "                      Default is enabled." << std::endl
+            << "  --[enable/disable]-chunked" << std::endl 
+            << "                      Use Transfer-Encoding chunked in response." << std::endl
+            << "                      Default is enabled." << std::endl
+            << "  --[enable/disable]-gzip" << std::endl 
+            << "                      Use Content-Encoding gzip in response." << std::endl
             << "                      Default is enabled." << std::endl
             << "  --help,-h           Display this message." << std::endl
             << "  --version,-v        Display version information." << std::endl

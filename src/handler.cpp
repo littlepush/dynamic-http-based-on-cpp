@@ -179,8 +179,6 @@ bool content_handlers::format_source_code( const std::string& origin_file ) {
         _ofs << "extern \"C\"{" << std::endl;
         _ofs << "void __" << utils::md5(_path)
             << "(const http_request& req, http_response& resp) {" << std::endl;
-        _ofs << "    resp.body.is_chunked = true;" << std::endl;
-        _ofs << "    resp.body.is_gzipped = true;" << std::endl;
         std::string _piece_prefix = utils::md5(_path);
         hcml _h;
         // All use default, excpet print method
