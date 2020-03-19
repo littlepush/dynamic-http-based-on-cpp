@@ -54,7 +54,8 @@ namespace dhboc {
 
     // Generate code
     #define __code(args...)     hcml_append_code_format(h, args)
-    #define __error(msg...)     hcml_set_error(h, HCML_ERR_ESYNTAX, msg); return
+    #define __errorf(msg...)    hcml_set_error(h, HCML_ERR_ESYNTAX, msg); return
+    #define __error(msg)        hcml_set_error(h, HCML_ERR_ESYNTAX, msg", at line: %d", t->bline); return
 
     bool __tag_is( p_ctag t, const char* name ) {
         return (strncmp(t->data_string, name, t->dl) == 0);
@@ -170,9 +171,6 @@ namespace dhboc {
     __TAG_PARSER__(prop) {
         __must_have_prop(t, name);
         __code("resp.write(\" %.*s\", %d);\n", __pprop(_PROP(name)), _PROP(name)->vl + 1);
-        if ( __child_tag(t) == NULL ) {
-            __error("Syntax Error: Invalidate cxx:prop, missing content");
-        }
 
         int _cc = __child_tag_count(t);
         if ( _cc > 0 ) {
@@ -589,7 +587,7 @@ namespace dhboc {
             }
         }
         if ( !_match_tag ) {
-            __error("Syntax Error: Unknow tag: %.*s", __ptag(root_tag)) h->errcode;
+            __errorf("Syntax Error: Unknow tag: %.*s", __ptag(root_tag)) h->errcode;
         }
         return h->errcode;
     }
