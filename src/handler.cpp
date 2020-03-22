@@ -301,7 +301,13 @@ bool content_handlers::try_find_handler(const http_request& req, http_response& 
             }
             // Do fine router
             _p = "r_" + r.method + "_" + r.handler;
-            break;
+            auto _h = _cs.handlers_.find(_p);
+            if ( _h != _cs.handlers_.end() ) {
+                _h->second(req, resp);
+                if ( resp.status_code != CODE_000 ) {
+                    return true;
+                }
+            }
         }
     }
 
