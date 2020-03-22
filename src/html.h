@@ -60,6 +60,10 @@ namespace dhboc { namespace html {
         element& attr( const std::string& akey, const std::string& value );
         element& text( const std::string& value );
 
+        element& id(const std::string& id_value);
+        element& name(const std::string& name_value);
+        element& data(const std::string& key, const std::string& value);
+
         element& children( const std::vector< element >& children_elements );
         element& add_child( const element& e );
         element& add_child( element&& e );

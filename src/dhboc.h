@@ -170,6 +170,34 @@ void apply_template(
 #include "session.h"
 #include "html.h"
 
+// Element Shortern API
+namespace dhboc {
+    html::element div();
+    html::element a();
+    html::element i();
+    html::element span();
+    html::element button();
+    html::element hr();
+    html::element br();
+    html::element p();
+    html::element ul();
+    html::element ol();
+    html::element li();
+    html::element h1();
+    html::element h2();
+    html::element h3();
+    html::element h4();
+    html::element h5();
+    html::element small();
+    html::element strong();
+    html::element sup();
+    html::element label();
+    html::element input();
+    html::element form();
+}
+
+using namespace dhboc;
+
 #endif
 
 // Push Chen
