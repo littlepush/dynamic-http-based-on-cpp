@@ -60,6 +60,7 @@ namespace dhboc { namespace html {
 
     // Events
     element& element::addClass( const std::string& class_name ) {
+        if ( class_name.size() == 0 ) return *this;
         auto _now_classes = utils::split(raw_element_->classes, " ");
         auto _new_classes = utils::split(class_name, " ");
         for ( const auto& c : _new_classes ) {
@@ -92,6 +93,15 @@ namespace dhboc { namespace html {
     element& element::text( const std::string& value ) {
         raw_element_->text = value;
         return *this;
+    }
+    element& element::id(const std::string& id_value) {
+        return this->attr("id", id_value);
+    }
+    element& element::name(const std::string& name_value) {
+        return this->attr("name", name_value);
+    }
+    element& element::data(const std::string& key, const std::string& value) {
+        return this->attr("data-" + key, value);
     }
 
     element& element::children( const std::vector< element >& children_elements ) {

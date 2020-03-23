@@ -162,13 +162,39 @@ void apply_template(
     content_template::apply_template(req, resp, template_name, ph);
 }
 
-// Safely get int value from string
-int safe_stoi( const std::string& v ) {
-    if ( v.size() == 0 ) return 0;
-    if ( utils::is_number(v) ) {
-        return std::stoi(v);
+namespace dhboc {
+    // Safely get int value from string
+    int safe_stoi( const std::string& v ) {
+        if ( v.size() == 0 ) return 0;
+        if ( utils::is_number(v) ) {
+            return std::stoi(v);
+        }
+        return 0;
     }
-    return 0;
+
+    html::element div() { return html::element("div"); }
+    html::element a() { return html::element("a"); }
+    html::element i() { return html::element("i"); }
+    html::element span() { return html::element("span"); }
+    html::element button() { return html::element("button"); }
+    html::element hr() { return html::element("hr"); }
+    html::element br() { return html::element("br"); }
+    html::element p() { return html::element("p"); }
+    html::element ul() { return html::element("ul"); }
+    html::element ol() { return html::element("ol"); }
+    html::element li() { return html::element("li"); }
+    html::element h1() { return html::element("h1"); }
+    html::element h2() { return html::element("h2"); }
+    html::element h3() { return html::element("h3"); }
+    html::element h4() { return html::element("h4"); }
+    html::element h5() { return html::element("h5"); }
+    html::element small() { return html::element("small"); }
+    html::element strong() { return html::element("strong"); }
+    html::element sup() { return html::element("sup"); }
+    html::element label() { return html::element("label"); }
+    html::element input() { return html::element("input"); }
+    html::element form() { return html::element("form"); }
+    
 }
 
 // Push Chen
