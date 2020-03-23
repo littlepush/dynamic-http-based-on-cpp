@@ -165,6 +165,14 @@ void apply_template(
     if ( __uv__(__ph, __LINE__) != ph.end() )  \
         __uv__(__ph, __LINE__)->second()
 
+// DHBoC Util Functions
+namespace dhboc {
+
+// Safely get int value from string
+int safe_stoi( const std::string& v );
+
+}
+
 #include "redismgr.h"
 #include "redisobj.h"
 #include "session.h"

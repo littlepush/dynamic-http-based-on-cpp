@@ -348,7 +348,7 @@ namespace dhboc {
             __code("auto %.*s = ", __pprop(_pvar));
         }
         if ( _ptoint != NULL ) {
-            __code("std::stoi(");
+            __code("dhboc::safe_stoi(");
         }
         __code("(url_params::contains(req.params, \"%.*s\") ? req.params[\"%.*s\"] : ", 
             __pprop(_PROP(key)), __pprop(_PROP(key)));
@@ -381,7 +381,7 @@ namespace dhboc {
             __code("auto %.*s = ", __pprop(_pvar));
         }
         if ( _ptoint != NULL ) {
-            __code("std::stoi(");
+            __code("dhboc::safe_stoi(");
         }
         __code("[](){ auto _s = dhboc::session::get(\"%.*s\"); return _s.size() > 0 ? _s : ", 
             __pprop(_PROP(key)));

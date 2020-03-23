@@ -162,4 +162,13 @@ void apply_template(
     content_template::apply_template(req, resp, template_name, ph);
 }
 
+// Safely get int value from string
+int safe_stoi( const std::string& v ) {
+    if ( v.size() == 0 ) return 0;
+    if ( utils::is_number(v) ) {
+        return std::stoi(v);
+    }
+    return 0;
+}
+
 // Push Chen
