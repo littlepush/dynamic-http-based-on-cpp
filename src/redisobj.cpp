@@ -122,6 +122,7 @@ namespace dhboc { namespace redis {
                 }
                 if ( _t == R_BOOLEAN && _prop_keys[i].dvalue.size() > 0 ) {
                     _result[_k] = __string_to_bool(_prop_keys[i].dvalue);
+                    continue;
                 }
                 _result[_k] = Json::Value(Json::nullValue);
                 continue;
