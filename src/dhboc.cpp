@@ -194,6 +194,7 @@ namespace dhboc {
     html::element label() { return html::element("label"); }
     html::element input() { return html::element("input"); }
     html::element form() { return html::element("form"); }
+    html::element img() { return html::element("img"); }
     
 }
 

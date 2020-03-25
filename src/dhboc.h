@@ -202,6 +202,7 @@ namespace dhboc {
     html::element label();
     html::element input();
     html::element form();
+    html::element img();
 }
 
 using namespace dhboc;

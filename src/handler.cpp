@@ -164,12 +164,12 @@ bool content_handlers::scan_webroot() {
 
 // Format and compile source code
 bool content_handlers::format_source_code( const std::string& origin_file ) {
-    rlog::info << "process source: " << origin_file << std::endl;
     std::string _path = origin_file;
     if ( utils::is_string_start(_path, app.webroot) ) {
         _path.erase(0, app.webroot.size() - 1);
     }
     std::string _output = startupmgr::source_dir() + utils::md5(_path) + ".cpp";
+    rlog::info << "process source: " << origin_file << "(" << _output << ")" << std::endl;
 
     time_t _origin_time = utils::file_update_time(origin_file);
     time_t _output_time = utils::file_update_time(_output);
